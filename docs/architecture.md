@@ -69,6 +69,16 @@ Tests that need real PostgreSQL use Testcontainers (PostgreSQL container +
 `./gradlew test` works everywhere. A larger integration-test framework is
 deliberately postponed.
 
+## Business modules
+
+- **Client management (implemented, Feature 04 — online only).** The `clients` table
+  (Flyway `V3`) and the `/api/clients` REST API (create, list, search, update, soft
+  delete) are the first business module, protected by the JWT authentication above.
+  A client holds only name, up to two phone numbers, optional email and notes — an
+  event/prestation address will belong to the future Demand/Project, not to Client.
+- Demand, Project, Quote, Payment, Reservation and the other ROSII modules are
+  **not implemented yet**.
+
 ## Authentication (Feature 03 — online only)
 
 V1 has exactly one application user: the **patronne**, with the single role
