@@ -137,6 +137,17 @@ a test-only JWT value.
 
 ## Current project status
 
+**Feature 04 — Client management (implemented, online API only):**
+
+- `Client` entity (UUID id, `name`, `phone1` required, optional `phone2`/`email`/`notes`,
+  audit timestamps, `version`, `deleted_at`) created by Flyway migration `V3__create_clients.sql`
+- REST API under `/api/clients`: create, list, search (`?search=` on name/phones/email,
+  case-insensitive), get by id, update, and **soft delete** (row is kept; deleted clients
+  disappear from the API and return 404)
+- Email optional and normalized to lowercase; **not unique** (two clients may share it)
+- All endpoints require the existing JWT authentication; concurrent updates answer 409
+- **Frontend Client UI and offline/synchronization support are NOT implemented yet**
+
 **Feature 03 — Authentication (implemented, online only):**
 
 - `User` entity (UUID id, email, BCrypt `password_hash`, role, audit timestamps,
