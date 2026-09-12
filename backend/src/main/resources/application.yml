@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: rosii-management
+
+  datasource:
+    # All values come from environment variables (.env.example at the repo root).
+    # Defaults only point at a local PostgreSQL used during development.
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/rosii_management}
+    username: ${DATABASE_USERNAME:rosii}
+    password: ${DATABASE_PASSWORD:}
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    # Explicit dialect so the application can start without a live database.
+    # Hibernate otherwise connects once at startup to detect the dialect.
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: ${SERVER_PORT:8080}

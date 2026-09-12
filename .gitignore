@@ -1,0 +1,33 @@
+# Node / frontend
+node_modules/
+dist/
+*.local
+
+# Tauri / Rust
+desktop/src-tauri/target/
+desktop/src-tauri/gen/schemas/
+
+# Backend
+backend/.gradle/
+backend/build/
+
+# Visual Studio
+.vs/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,0 +1,23 @@
+[package]
+name = "rosii-management"
+version = "0.1.0"
+description = "ROSII Management desktop application"
+authors = ["Group Chez Rosii"]
+edition = "2021"
+
+[lib]
+name = "rosii_management_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true
