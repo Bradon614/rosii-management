@@ -137,6 +137,20 @@ a test-only JWT value.
 
 ## Current project status
 
+**Feature 05 — Service catalogue (implemented, online API only):**
+
+- `Service` entity (UUID id, `name`, fixed `category` enum covering the ten ROSII
+  activities, optional `description`, `defaultUnit`, `referencePrice` as BigDecimal,
+  `active` flag, audit timestamps, `version`, `deleted_at`) created by Flyway
+  migration `V4__create_services.sql`
+- REST API under `/api/services`: create, list with combined `search`/`category`/`active`
+  filters (case-insensitive, deterministic name ordering), get by id, update with
+  optimistic-locking version check (409 on stale), `PATCH /{id}/active` to
+  activate/deactivate, and soft delete
+- `referencePrice` is catalogue reference only — no pricing, tax, discount or
+  currency logic; future quotes will keep their own historical prices
+- **Frontend catalogue UI and offline/synchronization support are NOT implemented yet**
+
 **Feature 04 — Client management (implemented, online API only):**
 
 - `Client` entity (UUID id, `name`, `phone1` required, optional `phone2`/`email`/`notes`,

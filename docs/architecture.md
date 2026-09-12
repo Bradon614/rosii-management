@@ -76,6 +76,13 @@ deliberately postponed.
   delete) are the first business module, protected by the JWT authentication above.
   A client holds only name, up to two phone numbers, optional email and notes — an
   event/prestation address will belong to the future Demand/Project, not to Client.
+- **Service catalogue (implemented, Feature 05 — online only).** The `services` table
+  (Flyway `V4`) and the `/api/services` REST API expose ROSII's commercially offered
+  services across ten fixed categories (catering, decoration, florist, transport,
+  equipment/hall/car rental, construction, real estate, other). Services carry a
+  reference price (BigDecimal, no pricing logic), an `active` flag distinct from soft
+  deletion, and optimistic-locking updates. Proposals/quotes that will snapshot their
+  own prices are **not implemented yet**.
 - Demand, Project, Quote, Payment, Reservation and the other ROSII modules are
   **not implemented yet**.
 
