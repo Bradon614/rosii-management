@@ -69,6 +69,27 @@ Tests that need real PostgreSQL use Testcontainers (PostgreSQL container +
 `./gradlew test` works everywhere. A larger integration-test framework is
 deliberately postponed.
 
+## Authentication (Feature 03 — online only)
+
+V1 has exactly one application user: the **patronne**, with the single role
+`PATRONNE`. Employees do not have accounts in V1.
+
+- Passwords are stored as **BCrypt** hashes (`password_hash`); plaintext is never
+  stored, logged, or returned by the API.
+- Authentication is **stateless JWT**: `POST /api/auth/login` returns an HMAC-signed
+  access token; the signing key (`JWT_SECRET`) and lifetime (`JWT_EXPIRATION`) come
+  from environment variables — never hardcoded.
+- The initial account is created through a strictly controlled one-time
+  `POST /api/auth/setup` that closes itself (409) as soon as any active user exists.
+  No credentials are inserted by migrations or committed to Git.
+- Security policy: `/api/health` and the auth endpoints are public; every other
+  `/api/**` route requires a valid token. Invalid/expired tokens and wrong
+  credentials all answer 401 with an identical generic body (no account enumeration).
+- `GET /api/auth/me` returns `{id, email, role}` of the authenticated user and will
+  later drive session restoration in the desktop application.
+- **Offline authentication is NOT implemented yet** — it arrives with the
+  offline-first desktop work (local token handling, device identity, sync).
+
 ## Synchronization (*planned*)
 
 The desktop app will remain fully usable offline against SQLite and synchronize with

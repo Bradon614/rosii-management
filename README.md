@@ -15,6 +15,7 @@ functionality yet — only the technical skeleton the upcoming features will bui
 | Frontend         | React 19, TypeScript, Vite, Tailwind CSS 4, shadcn/ui |
 | Backend          | Java 21, Spring Boot 3, Gradle                    |
 | API              | REST                                              |
+| Security         | Spring Security, JWT (HMAC), BCrypt passwords     |
 | Migrations       | Flyway (PostgreSQL)                               |
 | Local database   | SQLite + Drizzle ORM (planned)                    |
 | Central database | PostgreSQL                                        |
@@ -68,10 +69,12 @@ npm run build     # typecheck + production build
 
 ## Running the backend
 
-With a reachable PostgreSQL (Flyway applies migrations on startup):
+The backend requires `JWT_SECRET` (see below) and a reachable PostgreSQL; Flyway
+applies migrations on startup:
 
 ```bash
 cd backend
+export JWT_SECRET="$(openssl rand -base64 48)"
 ./gradlew bootRun        # Windows: gradlew.bat bootRun
 ```
 
@@ -109,11 +112,29 @@ Copy `.env.example` and export the variables before running the backend
 | `DATABASE_PASSWORD`  | Database password                | *(empty)*                               |
 | `SERVER_PORT`        | HTTP port of the backend API     | `8080`                                  |
 | `FLYWAY_ENABLED`     | Run migrations on startup        | `true` (set `false` to boot without a DB) |
+| `JWT_SECRET`         | JWT signing key (≥ 32 chars)     | **required** — backend refuses to start without it |
+| `JWT_EXPIRATION`     | Access-token lifetime (seconds)  | `3600`                                  |
+
+Generate a strong secret, e.g. `openssl rand -base64 48`. The backend fails fast
+if `JWT_SECRET` is missing or too short — no default key is ever shipped.
 
 Never commit real credentials, API keys or secrets. `.env` files are git-ignored;
 `.env.example` is the placeholder template.
 
 ## Current project status
+
+**Feature 03 — Authentication (implemented, online only):**
+
+- `User` entity (UUID id, email, BCrypt `password_hash`, role, audit timestamps,
+  `version`, `deleted_at`) created by Flyway migration `V2__create_users.sql`
+- Single role in V1: **`PATRONNE`** — employees do **not** have accounts in V1
+- `POST /api/auth/login` returns a signed JWT (HS256) + user identity
+- `POST /api/auth/setup` creates the initial patronne account **once** (closed with
+  409 as soon as any active user exists) — no credentials in Git or migrations
+- `GET /api/auth/me` returns the authenticated identity (session restoration)
+- Spring Security: stateless, `/api/health` and the auth endpoints public, everything
+  else authenticated; invalid/expired tokens → 401; no enumeration of existing emails
+- **Offline authentication on the desktop is NOT implemented yet** (later feature)
 
 **Feature 02 — Database foundation (implemented):**
 
