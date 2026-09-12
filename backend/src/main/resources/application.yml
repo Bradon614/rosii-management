@@ -9,12 +9,23 @@ spring:
     username: ${DATABASE_USERNAME:rosii}
     password: ${DATABASE_PASSWORD:}
 
+  flyway:
+    # Migrations run on startup and require a reachable PostgreSQL.
+    # Set FLYWAY_ENABLED=false to boot the API without a database (frontend-only dev work).
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+
   jpa:
     hibernate:
+      # The schema is owned by Flyway migrations; Hibernate never creates or drops it.
       ddl-auto: none
+      # Java camelCase -> SQL snake_case (see docs/database-conventions.md).
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
     open-in-view: false
-    # Explicit dialect so the application can start without a live database.
-    # Hibernate otherwise connects once at startup to detect the dialect.
+    # Explicit dialect so the application can also start without a live database
+    # (with FLYWAY_ENABLED=false); Hibernate otherwise connects once at startup
+    # to detect the dialect.
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect

@@ -1,0 +1,11 @@
+-- ROSII Management — database baseline (Feature 02: database foundation).
+--
+-- This migration intentionally contains no business tables. It establishes the
+-- Flyway baseline so the migration pipeline (history table, checksums) is
+-- verified end to end before any real schema exists.
+--
+-- Business tables are introduced by later features, one migration per cohesive
+-- change (e.g. V2__create_client.sql). All migrations must follow the
+-- conventions documented in docs/database-conventions.md:
+--   snake_case names, uuid primary keys, timestamptz timestamps.
+SELECT 1;

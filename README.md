@@ -15,6 +15,7 @@ functionality yet — only the technical skeleton the upcoming features will bui
 | Frontend         | React 19, TypeScript, Vite, Tailwind CSS 4, shadcn/ui |
 | Backend          | Java 21, Spring Boot 3, Gradle                    |
 | API              | REST                                              |
+| Migrations       | Flyway (PostgreSQL)                               |
 | Local database   | SQLite + Drizzle ORM (planned)                    |
 | Central database | PostgreSQL                                        |
 
@@ -44,7 +45,8 @@ rosii-management/
 - Node.js 20+ and npm
 - Rust (stable, MSVC toolchain on Windows) — for the Tauri desktop shell
 - Java 21 (JDK) — for the backend
-- No local PostgreSQL is required yet; the backend starts without it
+- Docker (optional) — runs the PostgreSQL integration tests via Testcontainers
+- A local PostgreSQL is optional; see below for running without a database
 
 ## Running the desktop application
 
@@ -66,9 +68,17 @@ npm run build     # typecheck + production build
 
 ## Running the backend
 
+With a reachable PostgreSQL (Flyway applies migrations on startup):
+
 ```bash
 cd backend
 ./gradlew bootRun        # Windows: gradlew.bat bootRun
+```
+
+Without PostgreSQL (set `FLYWAY_ENABLED=false`; for frontend/backend dev only):
+
+```bash
+FLYWAY_ENABLED=false ./gradlew bootRun
 ```
 
 Then check the health endpoint:
@@ -84,6 +94,9 @@ Run the tests:
 ./gradlew test
 ```
 
+Integration tests that need PostgreSQL (Testcontainers) skip automatically when
+Docker is not available.
+
 ## Environment variables
 
 Copy `.env.example` and export the variables before running the backend
@@ -95,10 +108,23 @@ Copy `.env.example` and export the variables before running the backend
 | `DATABASE_USERNAME`  | Database user                    | `rosii`                                 |
 | `DATABASE_PASSWORD`  | Database password                | *(empty)*                               |
 | `SERVER_PORT`        | HTTP port of the backend API     | `8080`                                  |
+| `FLYWAY_ENABLED`     | Run migrations on startup        | `true` (set `false` to boot without a DB) |
 
-Never commit real credentials, API keys or secrets. `.env` files are git-ignored.
+Never commit real credentials, API keys or secrets. `.env` files are git-ignored;
+`.env.example` is the placeholder template.
 
 ## Current project status
+
+**Feature 02 — Database foundation (implemented):**
+
+- PostgreSQL configuration fully environment-based
+- Flyway migrations enabled (`V1__database_baseline.sql`); schema owned by migrations,
+  Hibernate `ddl-auto: none`
+- Conventions established and documented in
+  [docs/database-conventions.md](docs/database-conventions.md): UUID application-generated
+  primary keys, UTC audit timestamps (Spring Data JPA auditing), optimistic `@Version`
+  locking, `deleted_at` soft deletion, snake_case naming
+- PostgreSQL integration tests prepared with Testcontainers (skipped without Docker)
 
 **Feature 01 — Project foundation (implemented):**
 
@@ -106,7 +132,6 @@ Never commit real credentials, API keys or secrets. `.env` files are git-ignored
 - Tauri 2 + React 19 + TypeScript + Vite + Tailwind CSS 4 with shadcn/ui foundation
   (design tokens, `cn` utility, `Button` component) and a minimal application shell
 - Spring Boot 3 backend (Java 21, Gradle) with `GET /api/health` and a controller test
-- PostgreSQL configured through environment variables; no migrations yet
 - No business entities, no authentication, no synchronization yet
 
 **Planned (not implemented):** clients, demands, projects, payments, reservations and
