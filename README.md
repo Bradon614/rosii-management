@@ -121,6 +121,20 @@ if `JWT_SECRET` is missing or too short — no default key is ever shipped.
 Never commit real credentials, API keys or secrets. `.env` files are git-ignored;
 `.env.example` is the placeholder template.
 
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on pull requests to `main` and on
+pushes to `main`:
+
+- **Backend tests** — Java 21 + `./gradlew build` (compile, full test suite, boot jar).
+  The Testcontainers PostgreSQL integration tests run there, since GitHub Linux
+  runners provide Docker.
+- **Frontend build** — `npm ci` + `npm run build` (strict TypeScript check and Vite
+  production build). The native Tauri bundle is not built in CI yet.
+
+The CI needs no secrets: integration tests provide their own database container and
+a test-only JWT value.
+
 ## Current project status
 
 **Feature 03 — Authentication (implemented, online only):**
