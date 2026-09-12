@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Skipped automatically on machines without Docker
  * (the future integration-test strategy is documented in docs/architecture.md).
  */
-@SpringBootTest
+@SpringBootTest(properties = "jwt.secret=integration-test-signing-secret-32-chars!")
 @Testcontainers(disabledWithoutDocker = true)
 class PostgresDatabaseConnectionTest {
 

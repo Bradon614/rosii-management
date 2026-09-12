@@ -32,3 +32,9 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+
+jwt:
+  # Signing key: must be provided via environment (>= 32 bytes). Never hardcoded.
+  secret: ${JWT_SECRET:}
+  # Access-token lifetime. Plain numbers are seconds; Duration style also works (e.g. 30m).
+  expiration: ${JWT_EXPIRATION:3600}
