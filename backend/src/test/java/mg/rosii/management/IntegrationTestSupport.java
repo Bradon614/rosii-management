@@ -35,6 +35,15 @@ public abstract class IntegrationTestSupport {
         try (var connection = DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
                 var statement = connection.createStatement()) {
+            // @BeforeAll runs before the Spring context is created, so on a fresh
+            // database Flyway has not run yet and there is nothing to reset. The
+            // newest migration's table is the marker that the schema exists.
+            var rs = statement.executeQuery("SELECT EXISTS (SELECT 1 FROM information_schema.tables"
+                    + " WHERE table_name = 'demand_event_details')");
+            rs.next();
+            if (!rs.getBoolean(1)) {
+                return;
+            }
             // FK-safe order: children before parents.
             statement.execute("DELETE FROM demand_event_details");
             statement.execute("DELETE FROM demands");
