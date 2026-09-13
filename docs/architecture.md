@@ -65,9 +65,12 @@ Details and code templates: [database-conventions.md](database-conventions.md).
 ## Integration tests
 
 Tests that need real PostgreSQL use Testcontainers (PostgreSQL container +
-`@ServiceConnection`). They skip automatically on machines without Docker, so
-`./gradlew test` works everywhere. A larger integration-test framework is
-deliberately postponed.
+`@ServiceConnection`). A single container and a single cached Spring application
+context are shared across all integration test classes via
+`IntegrationTestSupport` (started lazily, reset per class, removed by the
+Testcontainers resource reaper), which keeps CI memory pressure low. They skip
+automatically on machines without Docker, so `./gradlew test` works everywhere.
+A larger integration-test framework is deliberately postponed.
 
 ## Business modules
 
