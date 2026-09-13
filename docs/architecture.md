@@ -65,9 +65,12 @@ Details and code templates: [database-conventions.md](database-conventions.md).
 ## Integration tests
 
 Tests that need real PostgreSQL use Testcontainers (PostgreSQL container +
-`@ServiceConnection`). They skip automatically on machines without Docker, so
-`./gradlew test` works everywhere. A larger integration-test framework is
-deliberately postponed.
+`@ServiceConnection`). A single container and a single cached Spring application
+context are shared across all integration test classes via
+`IntegrationTestSupport` (started lazily, reset per class, removed by the
+Testcontainers resource reaper), which keeps CI memory pressure low. They skip
+automatically on machines without Docker, so `./gradlew test` works everywhere.
+A larger integration-test framework is deliberately postponed.
 
 ## Business modules
 
@@ -83,6 +86,12 @@ deliberately postponed.
   reference price (BigDecimal, no pricing logic), an `active` flag distinct from soft
   deletion, and optimistic-locking updates. Proposals/quotes that will snapshot their
   own prices are **not implemented yet**.
+- **Demand management (implemented, Feature 06 — online only).** The `demands` and
+  `demand_event_details` tables (Flyway `V5`) and the `/api/demands` REST API record
+  what an existing active client requested — type, status, optional date, people
+  count, budget (NONE/EXACT/RANGE) and optional one-to-one event details. Statuses
+  are corrected freely by the patronne (no state machine); `ACCEPTED` does not
+  confirm any reservation. Soft-deleted clients keep their historical demands.
 - Demand, Project, Quote, Payment, Reservation and the other ROSII modules are
   **not implemented yet**.
 

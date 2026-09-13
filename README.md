@@ -137,6 +137,21 @@ a test-only JWT value.
 
 ## Current project status
 
+**Feature 06 — Demand management (implemented, online API only):**
+
+- `Demand` entity referencing an existing active `Client` (UUID id, `type`, `status`,
+  optional `requestedDate`/`estimatedPeople`/`location`/`notes`, `budgetType` with
+  consistent `budgetMin`/`budgetMax` as BigDecimal, audit timestamps, `version`,
+  `deleted_at`) plus a one-to-one optional `DemandEventDetails` (free-text
+  `eventType`, nullable tri-state service-request Booleans) — created by Flyway
+  migration `V5__create_demands.sql`
+- REST API under `/api/demands`: create (defaults to status `NEW`), list with
+  combinable `search`/`clientId`/`type`/`status` filters (newest first), get by id,
+  update with optimistic-locking version check (409 on stale), soft delete
+- A Demand records **what the client requested** only: no proposal, quote,
+  reservation or availability logic — `ACCEPTED` does not confirm a reservation
+- **Frontend demand UI and offline/synchronization support are NOT implemented yet**
+
 **Feature 05 — Service catalogue (implemented, online API only):**
 
 - `Service` entity (UUID id, `name`, fixed `category` enum covering the ten ROSII

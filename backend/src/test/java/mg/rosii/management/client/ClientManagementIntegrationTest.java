@@ -7,6 +7,7 @@ import javax.sql.DataSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import mg.rosii.management.IntegrationTestSupport;
 import mg.rosii.management.security.JwtService;
 import mg.rosii.management.user.Role;
 import mg.rosii.management.user.User;
@@ -22,7 +23,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,13 +43,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = "jwt.secret=integration-test-signing-secret-32-chars!")
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
-class ClientManagementIntegrationTest {
+class ClientManagementIntegrationTest extends IntegrationTestSupport {
 
     private static final String AUTH_EMAIL = "client-tests@example.com";
 
-    @Container
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    static final PostgreSQLContainer<?> postgres = POSTGRES;
 
     @Autowired
     private MockMvc mockMvc;
