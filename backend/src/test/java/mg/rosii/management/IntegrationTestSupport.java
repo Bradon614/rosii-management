@@ -2,7 +2,10 @@ package mg.rosii.management;
 
 import java.sql.DriverManager;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 /**
@@ -13,10 +16,6 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * works without Docker) and never stopped mid-run, keeping its mapped port
  * stable. Combined with identical {@code @SpringBootTest} properties across the
  * subclasses, Spring caches a single application context for the whole suite.
- *
- * <p>This replaces one-container-per-class, which occasionally starved the CI
- * runner (six containers and six cached contexts) and got the container killed
- * mid-class, surfacing as "connection refused" on its mapped port.
  *
  * <p>The container is removed by Testcontainers' resource reaper when the test
  * JVM exits. Because the database is shared, each test class starts from a
@@ -51,5 +50,22 @@ public abstract class IntegrationTestSupport {
             statement.execute("DELETE FROM services");
             statement.execute("DELETE FROM users");
         }
+    }
+
+    @AfterAll
+    static void stopSharedPostgres() {
+        if (POSTGRES.isRunning()) {
+            POSTGRES.stop();
+        }
+    }
+
+    @DynamicPropertySource
+    static void configureDatasource(DynamicPropertyRegistry registry) {
+        // Register the container's JDBC URL so Spring Boot connects to the
+        // single shared PostgreSQL started in @BeforeAll instead of spinning up
+        // a second one via @ServiceConnection.
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
 }

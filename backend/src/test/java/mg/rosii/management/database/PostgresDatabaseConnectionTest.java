@@ -11,8 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,9 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 class PostgresDatabaseConnectionTest extends IntegrationTestSupport {
-
-    @ServiceConnection
-    static final PostgreSQLContainer<?> postgres = POSTGRES;
 
     @Autowired
     private DataSource dataSource;
