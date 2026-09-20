@@ -43,6 +43,7 @@ public abstract class IntegrationTestSupport {
                 return;
             }
             // FK-safe order: children before parents.
+            statement.execute("DELETE FROM payments");
             statement.execute("DELETE FROM proposal_lines");
             statement.execute("DELETE FROM proposals");
             statement.execute("DELETE FROM demand_event_details");
