@@ -7,6 +7,7 @@ import javax.sql.DataSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import mg.rosii.management.IntegrationTestSupport;
 import mg.rosii.management.security.JwtService;
 import mg.rosii.management.user.Role;
 import mg.rosii.management.user.User;
@@ -17,12 +18,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,13 +39,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = "jwt.secret=integration-test-signing-secret-32-chars!")
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
-class ServiceManagementIntegrationTest {
+class ServiceManagementIntegrationTest extends IntegrationTestSupport {
 
     private static final String AUTH_EMAIL = "catalogue-tests@example.com";
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
     @Autowired
     private MockMvc mockMvc;
@@ -117,8 +111,9 @@ class ServiceManagementIntegrationTest {
 
     @Test
     void flywayAppliedV4Migration() throws Exception {
-        try (var rs = dataSource.getConnection().createStatement().executeQuery(
-                "SELECT success FROM flyway_schema_history WHERE version = '4'")) {
+        try (var connection = dataSource.getConnection();
+                var rs = connection.createStatement().executeQuery(
+                        "SELECT success FROM flyway_schema_history WHERE version = '4'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getBoolean(1)).isTrue();
         }
