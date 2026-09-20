@@ -4,6 +4,11 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
 }
 
+// Overrides the version managed by the Spring Boot BOM. Testcontainers 1.21.4
+// is required to work with recent Docker Engine / Docker Desktop API changes
+// (1.21.2 cannot detect Docker Desktop 4.91+, so all integration tests skip).
+extra["testcontainers.version"] = "1.21.4"
+
 group = "mg.rosii"
 version = "0.1.0"
 
