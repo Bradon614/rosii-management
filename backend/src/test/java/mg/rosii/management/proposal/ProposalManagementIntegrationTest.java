@@ -105,9 +105,15 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
 
     /** A valid two-line proposal: one catalogue-backed line, one free-form line. */
     private String proposalJson(String clientId, String demandId, String serviceId, String validUntil) {
+        return proposalJson(clientId, demandId, serviceId, validUntil, "300000");
+    }
+
+    /** Same payload with an explicit requested deposit (avance). */
+    private String proposalJson(String clientId, String demandId, String serviceId, String validUntil,
+            String requiredDeposit) {
         return """
                 {"clientId": "%s", "demandId": "%s", "title": "Mariage Rakoto",
-                 "validUntil": %s, "notes": "Devis initial",
+                 "validUntil": %s, "requiredDeposit": %s, "notes": "Devis initial",
                  "lines": [
                    {"serviceId": %s, "description": "Traiteur", "unit": "forfait",
                     "quantity": 2, "unitPrice": 400000, "notes": null},
@@ -115,7 +121,7 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
                     "quantity": 1, "unitPrice": 150000, "notes": null}
                  ]}
                 """.formatted(clientId, demandId, validUntil == null ? "null" : "\"" + validUntil + "\"",
-                serviceId == null ? "null" : "\"" + serviceId + "\"");
+                requiredDeposit, serviceId == null ? "null" : "\"" + serviceId + "\"");
     }
 
     private String createProposal(String clientId, String demandId, String serviceId, String validUntil)
@@ -159,7 +165,7 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
         assertThat(json.get("status").asText()).isEqualTo("DRAFT");
         assertThat(json.get("number").asText()).matches("PROP-\\d{4}-\\d{4}");
         assertThat(json.get("version").asLong()).isZero();
-        assertThat(json.get("totalAmount").decimalValue()).isEqualByComparingTo("950000.00");
+        assertThat(json.get("proposalTotal").decimalValue()).isEqualByComparingTo("950000.00");
         assertThat(json.get("sentAt").isNull()).isTrue();
 
         var lines = json.get("lines");
@@ -199,7 +205,7 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.lines.length()").value(2))
-                .andExpect(jsonPath("$.totalAmount").value(950000.00));
+                .andExpect(jsonPath("$.proposalTotal").value(950000.00));
     }
 
     @Test
@@ -228,8 +234,8 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
         // Empty lines -> 400.
         mockMvc.perform(post("/api/proposals").header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"clientId\": \"%s\", \"demandId\": \"%s\", \"lines\": []}"
-                                .formatted(clientId, demandId)))
+                        .content(("{\"clientId\": \"%s\", \"demandId\": \"%s\", \"requiredDeposit\": 100000,"
+                                + " \"lines\": []}").formatted(clientId, demandId)))
                 .andExpect(status().isBadRequest());
     }
 
@@ -280,7 +286,7 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
         var line = json.get("lines").get(0);
         assertThat(line.get("description").asText()).isEqualTo("Traiteur");
         assertThat(line.get("unitPrice").decimalValue()).isEqualByComparingTo("400000.00");
-        assertThat(json.get("totalAmount").decimalValue()).isEqualByComparingTo("950000.00");
+        assertThat(json.get("proposalTotal").decimalValue()).isEqualByComparingTo("950000.00");
     }
 
     @Test
@@ -292,7 +298,7 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
         String body = mockMvc.perform(post("/api/proposals").header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"clientId": "%s", "demandId": "%s",
+                                {"clientId": "%s", "demandId": "%s", "requiredDeposit": 100000,
                                  "lines": [{"description": "X", "unit": "u",
                                   "quantity": 2.5, "unitPrice": 80000.33}]}
                                 """.formatted(clientId, demandId)))
@@ -569,6 +575,70 @@ class ProposalManagementIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EXPIRED"));
     }
+
+    @Test
+    void requiredDepositRules() throws Exception {
+        String clientId = createClient("Alice Rakoto", "+261 34 12 34 56 78");
+        String demandId = createDemand(clientId);
+
+        // Missing deposit -> 400 (mandatory at creation).
+        mockMvc.perform(post("/api/proposals").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(proposalJson(clientId, demandId, null, VALID_UNTIL, "null")))
+                .andExpect(status().isBadRequest());
+
+        // Deposit <= 0 -> 400.
+        mockMvc.perform(post("/api/proposals").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(proposalJson(clientId, demandId, null, VALID_UNTIL, "0")))
+                .andExpect(status().isBadRequest());
+
+        // Deposit above the proposal total (950000) -> 400.
+        mockMvc.perform(post("/api/proposals").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(proposalJson(clientId, demandId, null, VALID_UNTIL, "950001")))
+                .andExpect(status().isBadRequest());
+
+        // A deposit equal to the whole total is accepted.
+        mockMvc.perform(post("/api/proposals").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(proposalJson(clientId, demandId, null, VALID_UNTIL, "950000")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.requiredDeposit").value(950000.00))
+                .andExpect(jsonPath("$.depositReached").value(false))
+                .andExpect(jsonPath("$.totalPaid").value(0.00))
+                .andExpect(jsonPath("$.remainingAmount").value(950000.00));
+    }
+
+    @Test
+    void depositStaysChangeableAfterSend() throws Exception {
+        String clientId = createClient("Alice Rakoto", "+261 34 12 34 56 78");
+        String demandId = createDemand(clientId);
+        String body = createProposal(clientId, demandId, null, VALID_UNTIL);
+        String id = proposalId(body);
+        changeStatus(id, "SENT", 0, 200);
+
+        // The commercial content is frozen, but the deposit is not:
+        // only a future preparation feature will lock it.
+        mockMvc.perform(patch("/api/proposals/" + id + "/deposit").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"requiredDeposit\": 200000, \"version\": 1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requiredDeposit").value(200000.00));
+        var updated = objectMapper.readTree(getProposal(id));
+        assertThat(updated.get("requiredDepositUpdatedAt").isNull()).isFalse();
+
+        // Above the total is refused here too, and a stale version gives 409.
+        mockMvc.perform(patch("/api/proposals/" + id + "/deposit").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"requiredDeposit\": 999999, \"version\": 2}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patch("/api/proposals/" + id + "/deposit").header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"requiredDeposit\": 100000, \"version\": 99}"))
+                .andExpect(status().isConflict());
+    }
 }
+
 
 

@@ -32,14 +32,24 @@ public record ProposalResponse(
         OffsetDateTime updatedAt,
         long version,
         List<ProposalLineResponse> lines,
-        BigDecimal totalAmount) {
+        BigDecimal proposalTotal,
+        BigDecimal requiredDeposit,
+        OffsetDateTime requiredDepositUpdatedAt,
+        BigDecimal totalPaid,
+        BigDecimal remainingAmount,
+        boolean depositReached) {
 
-    public static ProposalResponse from(Proposal proposal) {
+    /**
+     * Builds the response from the proposal and its paid total. The financial
+     * values are all derived (never stored): {@code remainingAmount} may be
+     * negative only if a legacy overpayment existed, as new payments that would
+     * exceed the proposal total are refused.
+     */
+    public static ProposalResponse from(Proposal proposal, BigDecimal totalPaid) {
         var lines = proposal.getLines().stream().map(ProposalLineResponse::from).toList();
-        BigDecimal total = proposal.getLines().stream()
-                .map(line -> line.getLineTotal())
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal total = proposal.getTotalAmount();
+        BigDecimal paid = totalPaid == null ? BigDecimal.ZERO.setScale(2) : totalPaid.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal deposit = proposal.getRequiredDeposit();
         return new ProposalResponse(
                 proposal.getId(),
                 proposal.getNumber(),
@@ -57,6 +67,11 @@ public record ProposalResponse(
                 proposal.getUpdatedAt(),
                 proposal.getVersion(),
                 lines,
-                total);
+                total,
+                deposit,
+                proposal.getRequiredDepositUpdatedAt(),
+                paid,
+                total.subtract(paid).setScale(2, RoundingMode.HALF_UP),
+                deposit != null && paid.compareTo(deposit) >= 0);
     }
 }

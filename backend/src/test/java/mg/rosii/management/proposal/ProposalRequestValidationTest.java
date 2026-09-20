@@ -33,7 +33,7 @@ class ProposalRequestValidationTest {
 
     private static CreateProposalRequest validCreate() {
         return new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), "Mariage Rakoto",
-                LocalDate.now().plusDays(15), "Notes", List.of(validLine()));
+                LocalDate.now().plusDays(15), new BigDecimal("300000"), "Notes", List.of(validLine()));
     }
 
     @Test
@@ -45,13 +45,33 @@ class ProposalRequestValidationTest {
     void freeFormLineWithoutServiceIsValid() {
         var line = new ProposalLineRequest(null, "Prestation libre", "unité",
                 new BigDecimal("2"), new BigDecimal("50000"), null);
-        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, null, List.of(line));
+        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null,
+                new BigDecimal("50000"), null, List.of(line));
         assertThat(VALIDATOR.validate(request)).isEmpty();
     }
 
     @Test
+    void missingRequiredDepositIsRejected() {
+        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, null, null,
+                List.of(validLine()));
+        assertThat(VALIDATOR.validate(request))
+                .anySatisfy(v -> assertThat(v.getPropertyPath()).hasToString("requiredDeposit"));
+    }
+
+    @Test
+    void zeroOrNegativeRequiredDepositIsRejected() {
+        for (String deposit : new String[] {"0", "-1"}) {
+            var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null,
+                    new BigDecimal(deposit), null, List.of(validLine()));
+            assertThat(VALIDATOR.validate(request))
+                    .anySatisfy(v -> assertThat(v.getPropertyPath()).hasToString("requiredDeposit"));
+        }
+    }
+
+    @Test
     void missingClientAndDemandAreRejected() {
-        var request = new CreateProposalRequest(null, null, null, null, null, List.of(validLine()));
+        var request = new CreateProposalRequest(null, null, null, null, new BigDecimal("1000"), null,
+                List.of(validLine()));
         assertThat(VALIDATOR.validate(request))
                 .extracting(v -> v.getPropertyPath().toString())
                 .contains("clientId", "demandId");
@@ -59,14 +79,14 @@ class ProposalRequestValidationTest {
 
     @Test
     void emptyLinesAreRejected() {
-        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, null, List.of());
+        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, new BigDecimal("1000"), null, List.of());
         assertThat(VALIDATOR.validate(request))
                 .anySatisfy(v -> assertThat(v.getPropertyPath()).hasToString("lines"));
     }
 
     @Test
     void nullLinesAreRejected() {
-        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, null, null);
+        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, new BigDecimal("1000"), null, null);
         assertThat(VALIDATOR.validate(request))
                 .anySatisfy(v -> assertThat(v.getPropertyPath()).hasToString("lines"));
     }
@@ -74,7 +94,7 @@ class ProposalRequestValidationTest {
     @Test
     void blankDescriptionAndUnitAreRejected() {
         var line = new ProposalLineRequest(null, "   ", " ", new BigDecimal("1"), new BigDecimal("10"), null);
-        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, null, List.of(line));
+        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, new BigDecimal("1000"), null, List.of(line));
         assertThat(VALIDATOR.validate(request))
                 .extracting(v -> v.getPropertyPath().toString())
                 .anySatisfy(p -> assertThat(p).contains("description"))
@@ -85,7 +105,7 @@ class ProposalRequestValidationTest {
     void nonPositiveQuantityIsRejected() {
         for (String quantity : new String[] {"0", "-1"}) {
             var line = new ProposalLineRequest(null, "X", "u", new BigDecimal(quantity), new BigDecimal("10"), null);
-            var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, null, List.of(line));
+            var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, new BigDecimal("1000"), null, List.of(line));
             assertThat(VALIDATOR.validate(request))
                     .anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("quantity"));
         }
@@ -94,14 +114,14 @@ class ProposalRequestValidationTest {
     @Test
     void negativeUnitPriceIsRejected() {
         var line = new ProposalLineRequest(null, "X", "u", new BigDecimal("1"), new BigDecimal("-0.01"), null);
-        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, null, List.of(line));
+        var request = new CreateProposalRequest(UUID.randomUUID(), UUID.randomUUID(), null, null, new BigDecimal("1000"), null, List.of(line));
         assertThat(VALIDATOR.validate(request))
                 .anySatisfy(v -> assertThat(v.getPropertyPath().toString()).contains("unitPrice"));
     }
 
     @Test
     void updateRequestRequiresVersion() {
-        var request = new UpdateProposalRequest(null, UUID.randomUUID(), UUID.randomUUID(), null, null, null,
+        var request = new UpdateProposalRequest(null, UUID.randomUUID(), UUID.randomUUID(), null, null, new BigDecimal("1000"), null,
                 List.of(validLine()));
         assertThat(VALIDATOR.validate(request))
                 .anySatisfy(v -> assertThat(v.getPropertyPath()).hasToString("version"));

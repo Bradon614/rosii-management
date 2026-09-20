@@ -1,5 +1,6 @@
 package mg.rosii.management.proposal;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -83,6 +84,17 @@ public class Proposal {
 
     @Column(name = "valid_until")
     private LocalDate validUntil;
+
+    /**
+     * Deposit (avance) requested from the client. Mandatory, > 0 and never above
+     * the proposal total. Stays editable until a future preparation feature
+     * locks it; Feature 08 introduces no preparation state.
+     */
+    @Column(name = "required_deposit", nullable = false, precision = 14, scale = 2)
+    private BigDecimal requiredDeposit;
+
+    @Column(name = "required_deposit_updated_at")
+    private OffsetDateTime requiredDepositUpdatedAt;
 
     @Column
     private String notes;
@@ -188,6 +200,34 @@ public class Proposal {
 
     public void setValidUntil(LocalDate validUntil) {
         this.validUntil = validUntil;
+    }
+
+    public BigDecimal getRequiredDeposit() {
+        return requiredDeposit;
+    }
+
+    public OffsetDateTime getRequiredDepositUpdatedAt() {
+        return requiredDepositUpdatedAt;
+    }
+
+    /**
+     * Changes the requested deposit and stamps {@code requiredDepositUpdatedAt}
+     * (only when the value actually changes, so an unchanged update does not look
+     * like a deposit revision).
+     */
+    public void changeRequiredDeposit(BigDecimal newDeposit) {
+        if (newDeposit == null || newDeposit.compareTo(requiredDeposit == null ? BigDecimal.ZERO : requiredDeposit) != 0) {
+            this.requiredDeposit = newDeposit;
+            this.requiredDepositUpdatedAt = OffsetDateTime.now();
+        }
+    }
+
+    /** Proposal total: sum of the line totals (never stored). */
+    public BigDecimal getTotalAmount() {
+        return lines.stream()
+                .map(ProposalLine::getLineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     public String getNotes() {

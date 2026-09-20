@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import mg.rosii.management.proposal.dto.CreateProposalRequest;
 import mg.rosii.management.proposal.dto.ProposalResponse;
 import mg.rosii.management.proposal.dto.SetProposalStatusRequest;
+import mg.rosii.management.proposal.dto.UpdateProposalDepositRequest;
 import mg.rosii.management.proposal.dto.UpdateProposalRequest;
 
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -70,6 +71,17 @@ public class ProposalController {
     @PatchMapping("/{id}/status")
     public ProposalResponse setStatus(@PathVariable UUID id, @Valid @RequestBody SetProposalStatusRequest request) {
         return proposalService.changeStatus(id, request.status(), request.version());
+    }
+
+    /**
+     * Deposit-only update. The commercial content is frozen from SENT onwards, but
+     * the requested deposit (avance) stays adjustable until a future preparation
+     * feature locks it.
+     */
+    @PatchMapping("/{id}/deposit")
+    public ProposalResponse setDeposit(@PathVariable UUID id,
+            @Valid @RequestBody UpdateProposalDepositRequest request) {
+        return proposalService.updateDeposit(id, request.requiredDeposit(), request.version());
     }
 
     /** Soft delete: the proposal disappears from the API but the row is kept. */
