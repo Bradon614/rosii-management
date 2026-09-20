@@ -1,5 +1,6 @@
 package mg.rosii.management.proposal;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
@@ -13,6 +14,7 @@ import mg.rosii.management.client.Client;
 import mg.rosii.management.client.ClientRepository;
 import mg.rosii.management.demand.Demand;
 import mg.rosii.management.demand.DemandRepository;
+import mg.rosii.management.payment.PaymentRepository;
 import mg.rosii.management.proposal.dto.CreateProposalRequest;
 import mg.rosii.management.proposal.dto.ProposalLineRequest;
 import mg.rosii.management.proposal.dto.ProposalResponse;
@@ -56,13 +58,15 @@ public class ProposalService {
     private final ClientRepository clients;
     private final DemandRepository demands;
     private final ServiceRepository services;
+    private final PaymentRepository payments;
 
     public ProposalService(ProposalRepository proposals, ClientRepository clients,
-            DemandRepository demands, ServiceRepository services) {
+            DemandRepository demands, ServiceRepository services, PaymentRepository payments) {
         this.proposals = proposals;
         this.clients = clients;
         this.demands = demands;
         this.services = services;
+        this.payments = payments;
     }
 
     @Transactional
@@ -81,8 +85,10 @@ public class ProposalService {
         proposal.setNotes(trimToNull(request.notes()));
         proposal.replaceLines(buildLines(request.lines()));
         proposal.setNumber(nextNumber());
+        applyDeposit(proposal, request.requiredDeposit());
         try {
-            return ProposalResponse.from(proposals.saveAndFlush(proposal));
+            return ProposalResponse.from(proposals.saveAndFlush(proposal),
+                    payments.sumActiveByProposalId(proposal.getId()));
         } catch (DataIntegrityViolationException e) {
             // The unique number constraint is the final guard against duplicates.
             throw new ResponseStatusException(HttpStatus.CONFLICT, "proposal number already exists");
@@ -93,7 +99,7 @@ public class ProposalService {
     public ProposalResponse get(UUID id) {
         Proposal proposal = findActive(id);
         expireIfPastValidity(proposal);
-        return ProposalResponse.from(proposal);
+        return toResponse(proposal);
     }
 
     /**
@@ -106,10 +112,13 @@ public class ProposalService {
     @Transactional(readOnly = true)
     public List<ProposalResponse> list(String search, UUID clientId, UUID demandId, ProposalStatus status) {
         String pattern = search == null || search.isBlank() ? null : likePattern(search.trim());
-        return proposals.findMatching(pattern, clientId, demandId, status,
-                        ProposalStatus.SENT, LocalDate.now()).stream()
-                .peek(this::expireIfPastValidity)
-                .map(ProposalResponse::from)
+        List<Proposal> found = proposals.findMatching(pattern, clientId, demandId, status,
+                ProposalStatus.SENT, LocalDate.now());
+        found.forEach(this::expireIfPastValidity);
+        Map<UUID, BigDecimal> paid = paidTotals(found);
+        return found.stream()
+                .map(proposal -> ProposalResponse.from(proposal,
+                        paid.getOrDefault(proposal.getId(), BigDecimal.ZERO)))
                 .toList();
     }
 
@@ -132,8 +141,23 @@ public class ProposalService {
         proposal.setValidUntil(request.validUntil());
         proposal.setNotes(trimToNull(request.notes()));
         proposal.replaceLines(buildLines(request.lines()));
+        applyDeposit(proposal, request.requiredDeposit());
         // Flush so the response carries the incremented @Version, not the stale one.
-        return ProposalResponse.from(proposals.saveAndFlush(proposal));
+        return ProposalResponse.from(proposals.saveAndFlush(proposal),
+                payments.sumActiveByProposalId(proposal.getId()));
+    }
+
+    /**
+     * Changes the requested deposit only (deposit stays editable independently of
+     * the frozen commercial content, until a future preparation feature locks it).
+     */
+    @Transactional
+    public ProposalResponse updateDeposit(UUID id, BigDecimal requiredDeposit, long expectedVersion) {
+        Proposal proposal = findActive(id);
+        checkVersion(proposal, expectedVersion);
+        applyDeposit(proposal, requiredDeposit);
+        return ProposalResponse.from(proposals.saveAndFlush(proposal),
+                payments.sumActiveByProposalId(proposal.getId()));
     }
 
     @Transactional
@@ -157,7 +181,8 @@ public class ProposalService {
         }
         // SENT -> DRAFT preserves historical timestamps per project conventions.
         proposal.setStatus(target);
-        return ProposalResponse.from(proposals.saveAndFlush(proposal));
+        return ProposalResponse.from(proposals.saveAndFlush(proposal),
+                payments.sumActiveByProposalId(proposal.getId()));
     }
 
     /** Soft deletion: sets deletedAt; the row remains in PostgreSQL. */
@@ -201,6 +226,39 @@ public class ProposalService {
         if (expectedVersion != proposal.getVersion()) {
             throw conflict("proposal was modified concurrently; reload with the current version and retry");
         }
+    }
+
+    /**
+     * Validates and applies the requested deposit: mandatory, > 0 and never above
+     * the proposal total (sum of its lines).
+     */
+    private static void applyDeposit(Proposal proposal, BigDecimal requiredDeposit) {
+        if (requiredDeposit == null || requiredDeposit.signum() <= 0) {
+            throw badRequest("requiredDeposit must be greater than zero");
+        }
+        BigDecimal total = proposal.getTotalAmount();
+        if (requiredDeposit.compareTo(total) > 0) {
+            throw badRequest("requiredDeposit cannot exceed the proposal total (" + total + ")");
+        }
+        proposal.changeRequiredDeposit(requiredDeposit);
+    }
+
+    /** Response with the derived financial values of a single proposal. */
+    private ProposalResponse toResponse(Proposal proposal) {
+        return ProposalResponse.from(proposal, payments.sumActiveByProposalId(proposal.getId()));
+    }
+
+    /** Paid totals for a batch of proposals, keyed by proposal id (one query). */
+    private Map<UUID, BigDecimal> paidTotals(List<Proposal> found) {
+        if (found.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> ids = found.stream().map(Proposal::getId).toList();
+        Map<UUID, BigDecimal> totals = new java.util.HashMap<>();
+        for (Object[] row : payments.sumActiveByProposalIds(ids)) {
+            totals.put((UUID) row[0], (BigDecimal) row[1]);
+        }
+        return totals;
     }
 
     /**
