@@ -73,7 +73,8 @@ class DemandManagementIntegrationTest extends IntegrationTestSupport {
 
     @BeforeEach
     void resetDataAndAuthenticate() throws Exception {
-        try (var statement = dataSource.getConnection().createStatement()) {
+        try (var connection = dataSource.getConnection();
+                var statement = connection.createStatement()) {
             statement.execute("DELETE FROM demand_event_details");
             statement.execute("DELETE FROM demands");
             statement.execute("DELETE FROM clients");
@@ -126,8 +127,9 @@ class DemandManagementIntegrationTest extends IntegrationTestSupport {
     }
 
     private int countRows(String table) throws Exception {
-        try (var rs = dataSource.getConnection().createStatement()
-                .executeQuery("SELECT count(*) FROM " + table)) {
+        try (var connection = dataSource.getConnection();
+                var rs = connection.createStatement()
+                        .executeQuery("SELECT count(*) FROM " + table)) {
             rs.next();
             return rs.getInt(1);
         }
@@ -135,8 +137,9 @@ class DemandManagementIntegrationTest extends IntegrationTestSupport {
 
     @Test
     void flywayAppliedV5Migration() throws Exception {
-        try (var rs = dataSource.getConnection().createStatement().executeQuery(
-                "SELECT success FROM flyway_schema_history WHERE version = '5'")) {
+        try (var connection = dataSource.getConnection();
+                var rs = connection.createStatement().executeQuery(
+                        "SELECT success FROM flyway_schema_history WHERE version = '5'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getBoolean(1)).isTrue();
         }

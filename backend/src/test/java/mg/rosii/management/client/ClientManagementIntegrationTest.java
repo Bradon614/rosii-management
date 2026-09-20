@@ -94,8 +94,9 @@ class ClientManagementIntegrationTest extends IntegrationTestSupport {
 
     @Test
     void flywayAppliedV3Migration() throws Exception {
-        try (var rs = dataSource.getConnection().createStatement().executeQuery(
-                "SELECT success FROM flyway_schema_history WHERE version = '3'")) {
+        try (var connection = dataSource.getConnection();
+                var rs = connection.createStatement().executeQuery(
+                        "SELECT success FROM flyway_schema_history WHERE version = '3'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getBoolean(1)).isTrue();
         }

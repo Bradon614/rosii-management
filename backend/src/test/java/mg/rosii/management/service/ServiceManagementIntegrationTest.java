@@ -111,8 +111,9 @@ class ServiceManagementIntegrationTest extends IntegrationTestSupport {
 
     @Test
     void flywayAppliedV4Migration() throws Exception {
-        try (var rs = dataSource.getConnection().createStatement().executeQuery(
-                "SELECT success FROM flyway_schema_history WHERE version = '4'")) {
+        try (var connection = dataSource.getConnection();
+                var rs = connection.createStatement().executeQuery(
+                        "SELECT success FROM flyway_schema_history WHERE version = '4'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getBoolean(1)).isTrue();
         }
