@@ -2,7 +2,6 @@ package mg.rosii.management;
 
 import java.sql.DriverManager;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -52,12 +51,11 @@ public abstract class IntegrationTestSupport {
         }
     }
 
-    @AfterAll
-    static void stopSharedPostgres() {
-        if (POSTGRES.isRunning()) {
-            POSTGRES.stop();
-        }
-    }
+    // The container is intentionally never stopped: @AfterAll runs once per
+    // concrete test class, so stopping it here would remove the container while
+    // later subclasses still need it (and their cached Spring context / Hikari
+    // pool would keep the previous mapped port, failing with ConnectException).
+    // Ryuk removes the container when the test JVM exits.
 
     @DynamicPropertySource
     static void configureDatasource(DynamicPropertyRegistry registry) {
