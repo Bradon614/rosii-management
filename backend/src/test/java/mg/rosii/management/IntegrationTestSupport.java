@@ -37,7 +37,7 @@ public abstract class IntegrationTestSupport {
             // database Flyway has not run yet and there is nothing to reset. The
             // newest migration's table is the marker that the schema exists.
             var rs = statement.executeQuery("SELECT EXISTS (SELECT 1 FROM information_schema.tables"
-                    + " WHERE table_name = 'service_closures')");
+                    + " WHERE table_name = 'payment_receipts')");
             rs.next();
             if (!rs.getBoolean(1)) {
                 return;
@@ -46,6 +46,7 @@ public abstract class IntegrationTestSupport {
             statement.execute("DELETE FROM service_closures");
             statement.execute("DELETE FROM executions");
             statement.execute("DELETE FROM preparations");
+            statement.execute("DELETE FROM payment_receipts");
             statement.execute("DELETE FROM payments");
             statement.execute("DELETE FROM proposal_lines");
             statement.execute("DELETE FROM proposals");
