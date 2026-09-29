@@ -6,11 +6,16 @@ import java.util.UUID;
 
 import jakarta.validation.Valid;
 
+import mg.rosii.management.document.DocumentPdf;
+import mg.rosii.management.document.DocumentPdfService;
 import mg.rosii.management.paymentreceipt.dto.CreatePaymentReceiptRequest;
 import mg.rosii.management.paymentreceipt.dto.PaymentReceiptResponse;
 
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -29,16 +34,20 @@ import org.springframework.web.bind.annotation.RestController;
  * real receipt scope exist: create, read (by id or filtered list) and soft
  * delete. There is deliberately NO PUT: a receipt is an immutable historical
  * document (any PUT on /{id} is answered 405 by the framework since only GET and
- * DELETE are mapped). No PDF or document generation happens here.
+ * DELETE are mapped). PDF rendering of the persisted receipt is provided by the
+ * document layer (Feature 14) via GET /{id}/pdf.
  */
 @RestController
 @RequestMapping("/api/payment-receipts")
 public class PaymentReceiptController {
 
     private final PaymentReceiptService receiptService;
+    private final DocumentPdfService documentPdfService;
 
-    public PaymentReceiptController(PaymentReceiptService receiptService) {
+    public PaymentReceiptController(PaymentReceiptService receiptService,
+            DocumentPdfService documentPdfService) {
         this.receiptService = receiptService;
+        this.documentPdfService = documentPdfService;
     }
 
     @PostMapping
@@ -58,6 +67,21 @@ public class PaymentReceiptController {
     @GetMapping("/{id}")
     public PaymentReceiptResponse get(@PathVariable UUID id) {
         return receiptService.get(id);
+    }
+
+    /**
+     * PDF of the receipt (Feature 14), rendered from the persisted snapshot only;
+     * 404 for an unknown or soft-deleted receipt. Read-only: no modification of
+     * the document is possible through this endpoint.
+     */
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> pdf(@PathVariable UUID id) {
+        DocumentPdf pdf = documentPdfService.receiptPdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(pdf.fileName()).build().toString())
+                .body(pdf.content());
     }
 
     /** Soft delete: the receipt disappears from the API but the row and number are kept. */

@@ -6,11 +6,16 @@ import java.util.UUID;
 
 import jakarta.validation.Valid;
 
+import mg.rosii.management.document.DocumentPdf;
+import mg.rosii.management.document.DocumentPdfService;
 import mg.rosii.management.invoice.dto.CreateInvoiceRequest;
 import mg.rosii.management.invoice.dto.InvoiceResponse;
 
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -29,16 +34,19 @@ import org.springframework.web.bind.annotation.RestController;
  * invoice scope exist: create, read (by id or filtered list) and soft delete.
  * There is deliberately NO PUT: an invoice is an immutable financial document
  * (any PUT on /{id} is answered 405 by the framework since only GET and DELETE
- * are mapped). No PDF or document generation happens here.
+ * are mapped). PDF rendering of the persisted snapshot is provided by the
+ * document layer (Feature 14) via GET /{id}/pdf.
  */
 @RestController
 @RequestMapping("/api/invoices")
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
+    private final DocumentPdfService documentPdfService;
 
-    public InvoiceController(InvoiceService invoiceService) {
+    public InvoiceController(InvoiceService invoiceService, DocumentPdfService documentPdfService) {
         this.invoiceService = invoiceService;
+        this.documentPdfService = documentPdfService;
     }
 
     @PostMapping
@@ -58,6 +66,22 @@ public class InvoiceController {
     @GetMapping("/{id}")
     public InvoiceResponse get(@PathVariable UUID id) {
         return invoiceService.get(id);
+    }
+
+    /**
+     * PDF of the invoice (Feature 14), rendered from the persisted invoice
+     * snapshot only (never from the current payment row); 404 for an unknown or
+     * soft-deleted invoice. Read-only: no modification of the document is
+     * possible through this endpoint.
+     */
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> pdf(@PathVariable UUID id) {
+        DocumentPdf pdf = documentPdfService.invoicePdf(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(pdf.fileName()).build().toString())
+                .body(pdf.content());
     }
 
     /** Soft delete: the invoice disappears from the API but the row and number are kept. */
