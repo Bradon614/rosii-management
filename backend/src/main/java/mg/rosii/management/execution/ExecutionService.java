@@ -1,6 +1,7 @@
 package mg.rosii.management.execution;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
@@ -10,9 +11,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+import mg.rosii.management.execution.dto.CancelExecutionRequest;
+import mg.rosii.management.execution.dto.CancellationResponse;
 import mg.rosii.management.execution.dto.CreateExecutionRequest;
 import mg.rosii.management.execution.dto.ExecutionResponse;
 import mg.rosii.management.execution.dto.UpdateExecutionRequest;
+import mg.rosii.management.execution.dto.UpdateScheduledDateRequest;
 import mg.rosii.management.payment.PaymentRepository;
 import mg.rosii.management.preparation.Preparation;
 import mg.rosii.management.preparation.PreparationRepository;
@@ -41,6 +45,9 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @org.springframework.stereotype.Service
 public class ExecutionService {
+
+    /** Feature 15: 25% of the proposal total are kept when a service is cancelled. */
+    private static final BigDecimal RETENTION_RATE = new BigDecimal("0.25");
 
     /** Strict state machine: allowed target statuses per current status. */
     private static final Map<ExecutionStatus, Set<ExecutionStatus>> TRANSITIONS;
@@ -172,6 +179,90 @@ public class ExecutionService {
     @Transactional
     public void delete(UUID id) {
         findActive(id).markDeleted();
+    }
+
+    /**
+     * Feature 15 — service date modification. Allowed only while PLANNED and
+     * only up to J-5 included: the CURRENT service date minus 5 days must be
+     * today or later (J-10, J-6 and J-5 are allowed; J-4, J-1 and the day
+     * itself are refused 409). The new date is mandatory (validated on the
+     * request) and only local dates are used, no extra business timezone. An
+     * execution without a scheduled date yet has nothing to protect, so
+     * setting its first date is always allowed. Optimistic locking follows
+     * the update convention: a stale optional version is 409, and the
+     * entity's {@code @Version} still rejects true concurrent writes at
+     * flush. The theme is NOT handled here: no modifiable theme data exists
+     * in the operational model (the demand-phase theme belongs to the demand,
+     * not to the execution), so only the date is modifiable (Feature 15 §4).
+     */
+    @Transactional
+    public ExecutionResponse reschedule(UUID id, UpdateScheduledDateRequest request) {
+        Execution execution = findActive(id);
+        checkOptionalVersion(execution, request.version());
+        if (execution.getStatus() != ExecutionStatus.PLANNED) {
+            throw conflict("a " + execution.getStatus() + " execution cannot be rescheduled");
+        }
+        LocalDate current = execution.getScheduledDate();
+        if (current != null && current.minusDays(5).isBefore(LocalDate.now())) {
+            throw conflict("the service date can only be modified up to 5 days before the service (J-5)");
+        }
+        execution.setScheduledDate(request.scheduledDate());
+        return ExecutionResponse.from(executions.saveAndFlush(execution));
+    }
+
+    /**
+     * Feature 15 — service cancellation. Allowed only while PLANNED (this
+     * endpoint never cancels an IN_PROGRESS execution; the Feature 10 state
+     * machine still offers IN_PROGRESS -> CANCELLED through PATCH /{id}/status).
+     * {@code cancelledAt} is stamped by the server, the optional reason is
+     * trimmed and stored, and the status becomes CANCELLED (terminal). The
+     * amounts are derived, never stored: the retention is 25% of the ACCEPTED
+     * proposal total (not of what was paid), HALF_UP at 2 decimals, and the
+     * potential refund is what was already paid minus the retention, floored
+     * at 0 — an indication only, never a payment movement, debt or credit.
+     * Historical payments, receipts and invoices are never modified nor
+     * deleted: a cancellation does not rewrite the documents already issued.
+     */
+    @Transactional
+    public CancellationResponse cancel(UUID id, CancelExecutionRequest request) {
+        Execution execution = findActive(id);
+        checkOptionalVersion(execution, request.version());
+        if (execution.getStatus() != ExecutionStatus.PLANNED) {
+            throw conflict("only a PLANNED execution can be cancelled here; this one is "
+                    + execution.getStatus());
+        }
+        execution.setStatus(ExecutionStatus.CANCELLED);
+        execution.setCancelledAt(OffsetDateTime.now());
+        execution.setCancellationReason(trimToNull(request.reason()));
+        execution = executions.saveAndFlush(execution);
+
+        Proposal proposal = execution.getPreparation().getProposal();
+        BigDecimal proposalTotal = proposal.getTotalAmount().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalPaid = payments.sumActiveByProposalId(proposal.getId())
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal retainedAmount = proposalTotal.multiply(RETENTION_RATE)
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal potentialRefundAmount = totalPaid.subtract(retainedAmount);
+        if (potentialRefundAmount.compareTo(BigDecimal.ZERO) < 0) {
+            potentialRefundAmount = BigDecimal.ZERO.setScale(2);
+        }
+        return CancellationResponse.from(execution, proposalTotal, totalPaid, retainedAmount,
+                potentialRefundAmount);
+    }
+
+    /** Optional-version optimistic locking, the same convention as update(). */
+    private void checkOptionalVersion(Execution execution, Long version) {
+        if (version != null && version != execution.getVersion()) {
+            throw conflict("execution was modified concurrently; reload with the current version and retry");
+        }
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private Execution findActive(UUID id) {

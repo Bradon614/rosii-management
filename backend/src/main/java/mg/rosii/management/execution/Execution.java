@@ -88,6 +88,14 @@ public class Execution {
     @Column(name = "cancelled_at")
     private OffsetDateTime cancelledAt;
 
+    /**
+     * Optional free-text reason recorded once at cancellation time (Feature 15,
+     * max 2000 characters, validated by the API). Never touched afterwards: a
+     * cancellation is a single business action in this V1, no history table.
+     */
+    @Column(name = "cancellation_reason", length = 2000)
+    private String cancellationReason;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -185,6 +193,14 @@ public class Execution {
 
     public void setCancelledAt(OffsetDateTime cancelledAt) {
         this.cancelledAt = cancelledAt;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
+    public void setCancellationReason(String cancellationReason) {
+        this.cancellationReason = cancellationReason;
     }
 
     public OffsetDateTime getCreatedAt() {

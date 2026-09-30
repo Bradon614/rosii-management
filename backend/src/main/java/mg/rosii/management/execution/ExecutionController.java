@@ -7,10 +7,13 @@ import java.util.UUID;
 
 import jakarta.validation.Valid;
 
+import mg.rosii.management.execution.dto.CancelExecutionRequest;
+import mg.rosii.management.execution.dto.CancellationResponse;
 import mg.rosii.management.execution.dto.CreateExecutionRequest;
 import mg.rosii.management.execution.dto.ExecutionResponse;
 import mg.rosii.management.execution.dto.UpdateExecutionRequest;
 import mg.rosii.management.execution.dto.UpdateExecutionStatusRequest;
+import mg.rosii.management.execution.dto.UpdateScheduledDateRequest;
 
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -82,6 +85,30 @@ public class ExecutionController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {
         executionService.delete(id);
+    }
+
+    /**
+     * Feature 15 — modifies the service date while PLANNED and up to J-5
+     * included (current date minus 5 days must be today or later; otherwise
+     * 409). Refused for IN_PROGRESS, COMPLETED and CANCELLED executions.
+     */
+    @PatchMapping("/{id}/scheduled-date")
+    public ExecutionResponse reschedule(@PathVariable UUID id,
+            @Valid @RequestBody UpdateScheduledDateRequest request) {
+        return executionService.reschedule(id, request);
+    }
+
+    /**
+     * Feature 15 — cancels a PLANNED service: status becomes CANCELLED
+     * (terminal), cancelledAt is stamped server-side, the optional reason is
+     * stored, and the response carries the derived amounts (25% of the
+     * proposal total retained, potential refund floored at 0). No payment,
+     * receipt or invoice is ever modified or deleted.
+     */
+    @PatchMapping("/{id}/cancel")
+    public CancellationResponse cancel(@PathVariable UUID id,
+            @Valid @RequestBody CancelExecutionRequest request) {
+        return executionService.cancel(id, request);
     }
 
     /** True concurrent modification caught by @Version at flush — clean 409. */
