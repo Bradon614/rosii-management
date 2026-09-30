@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import mg.rosii.management.execution.dto.CancelExecutionRequest;
 import mg.rosii.management.execution.dto.CancellationResponse;
 import mg.rosii.management.execution.dto.CreateExecutionRequest;
+import mg.rosii.management.execution.dto.ExecutionAvailabilityResponse;
 import mg.rosii.management.execution.dto.ExecutionResponse;
 import mg.rosii.management.execution.dto.UpdateExecutionRequest;
 import mg.rosii.management.execution.dto.UpdateExecutionStatusRequest;
@@ -61,6 +62,20 @@ public class ExecutionController {
             @RequestParam(required = false) ExecutionStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate scheduledDate) {
         return executionService.list(preparationId, status, scheduledDate);
+    }
+
+    /**
+     * Feature 16 — availability check for one service date: is the date
+     * already occupied by another active execution (PLANNED or IN_PROGRESS)?
+     * {@code excludeExecutionId} optionally ignores one execution (404 when
+     * unknown or soft-deleted) so an existing service can be moved to its own
+     * date without a false conflict.
+     */
+    @GetMapping("/availability")
+    public ExecutionAvailabilityResponse availability(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate scheduledDate,
+            @RequestParam(required = false) UUID excludeExecutionId) {
+        return executionService.checkAvailability(scheduledDate, excludeExecutionId);
     }
 
     @GetMapping("/{id}")

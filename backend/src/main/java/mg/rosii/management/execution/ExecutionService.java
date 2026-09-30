@@ -14,6 +14,7 @@ import java.util.UUID;
 import mg.rosii.management.execution.dto.CancelExecutionRequest;
 import mg.rosii.management.execution.dto.CancellationResponse;
 import mg.rosii.management.execution.dto.CreateExecutionRequest;
+import mg.rosii.management.execution.dto.ExecutionAvailabilityResponse;
 import mg.rosii.management.execution.dto.ExecutionResponse;
 import mg.rosii.management.execution.dto.UpdateExecutionRequest;
 import mg.rosii.management.execution.dto.UpdateScheduledDateRequest;
@@ -42,12 +43,30 @@ import org.springframework.web.server.ResponseStatusException;
  * startedAt/completedAt/cancelledAt server-side. Operational info is editable
  * according to the status (all fields while PLANNED, location/notes only while
  * IN_PROGRESS, nothing once terminal).
+ *
+ * <p>Feature 16 adds the service availability rule: one active execution
+ * (PLANNED or IN_PROGRESS, never soft-deleted) per local service date. It is
+ * checked at creation (when a date is provided), on the Feature 15 date
+ * modification, and exposed through GET /api/executions/availability. This
+ * application-level check is a business rule, not a transactional guarantee:
+ * the entity's {@code @Version} stays the final guard against concurrent
+ * writes.
  */
 @org.springframework.stereotype.Service
 public class ExecutionService {
 
     /** Feature 15: 25% of the proposal total are kept when a service is cancelled. */
     private static final BigDecimal RETENTION_RATE = new BigDecimal("0.25");
+
+    /**
+     * Feature 16: the statuses that occupy a service date. COMPLETED services
+     * keep the history but free the date, and CANCELLED or soft-deleted ones
+     * never block. The availability check below is the V1 business rule; it
+     * does NOT replace the entity's {@code @Version}, which stays the final
+     * guard against true concurrent writes at flush.
+     */
+    private static final Set<ExecutionStatus> DATE_OCCUPYING_STATUSES =
+            Set.of(ExecutionStatus.PLANNED, ExecutionStatus.IN_PROGRESS);
 
     /** Strict state machine: allowed target statuses per current status. */
     private static final Map<ExecutionStatus, Set<ExecutionStatus>> TRANSITIONS;
@@ -89,8 +108,15 @@ public class ExecutionService {
         if (executions.existsByPreparationIdAndDeletedAtIsNull(preparation.getId())) {
             throw conflict("an execution already exists for this preparation");
         }
+        // Feature 16: when a service date is provided at creation, it must be
+        // free (PLANNED/IN_PROGRESS only). Without a date, Feature 10 behavior
+        // is unchanged — a date is NOT required at creation.
+        if (request.scheduledDate() != null) {
+            assertDateFree(request.scheduledDate(), null);
+        }
         Execution execution = new Execution();
         execution.setPreparation(preparation);
+        execution.setScheduledDate(request.scheduledDate());
         try {
             return ExecutionResponse.from(executions.saveAndFlush(execution));
         } catch (DataIntegrityViolationException e) {
@@ -206,6 +232,12 @@ public class ExecutionService {
         if (current != null && current.minusDays(5).isBefore(LocalDate.now())) {
             throw conflict("the service date can only be modified up to 5 days before the service (J-5)");
         }
+        // Feature 16: the new date must not be occupied by another ACTIVE
+        // execution (PLANNED or IN_PROGRESS). This execution itself is excluded
+        // from the search, so moving to its own current date never conflicts.
+        // On conflict the exception aborts the transaction before any write and
+        // the existing date stays unchanged.
+        assertDateFree(request.scheduledDate(), id);
         execution.setScheduledDate(request.scheduledDate());
         return ExecutionResponse.from(executions.saveAndFlush(execution));
     }
@@ -248,6 +280,46 @@ public class ExecutionService {
         }
         return CancellationResponse.from(execution, proposalTotal, totalPaid, retainedAmount,
                 potentialRefundAmount);
+    }
+
+    /**
+     * Feature 16 — service availability. A date is occupied when an ACTIVE
+     * execution (PLANNED or IN_PROGRESS, never soft-deleted) is scheduled on
+     * it; COMPLETED services keep the history but free the date, and CANCELLED
+     * or soft-deleted ones never block (cancelling releases the date
+     * immediately). {@code excludeExecutionId} — used when moving an existing
+     * service — must reference an existing, not soft-deleted execution (404
+     * otherwise) and is ignored by the search so an execution never conflicts
+     * with itself.
+     *
+     * <p>This application-level check is the V1 business rule ("is this date
+     * already taken by another service?"); it is deliberately simple — one
+     * active execution per local date, no slots, rooms, resources or time
+     * overlaps — and it does NOT replace the entity's {@code @Version}: two
+     * truly concurrent writes can still race between the check and the flush,
+     * and the optimistic lock stays the final guard (409) against lost
+     * updates. No locking architecture is introduced for this feature.
+     */
+    @Transactional(readOnly = true)
+    public ExecutionAvailabilityResponse checkAvailability(LocalDate scheduledDate, UUID excludeExecutionId) {
+        if (excludeExecutionId != null) {
+            findActive(excludeExecutionId);
+        }
+        List<UUID> conflicting = executions
+                .findActiveByScheduledDate(scheduledDate, DATE_OCCUPYING_STATUSES, excludeExecutionId)
+                .stream()
+                .map(Execution::getId)
+                .toList();
+        return new ExecutionAvailabilityResponse(scheduledDate, conflicting.isEmpty(), conflicting);
+    }
+
+    /** Feature 16 guard: 409 when another active execution already occupies the date. */
+    private void assertDateFree(LocalDate scheduledDate, UUID excludedExecutionId) {
+        if (!executions.findActiveByScheduledDate(scheduledDate, DATE_OCCUPYING_STATUSES, excludedExecutionId)
+                .isEmpty()) {
+            throw conflict("the service date " + scheduledDate
+                    + " is already occupied by another active execution");
+        }
     }
 
     /** Optional-version optimistic locking, the same convention as update(). */

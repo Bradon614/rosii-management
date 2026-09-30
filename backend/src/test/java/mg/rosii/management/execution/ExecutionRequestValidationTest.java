@@ -28,12 +28,12 @@ class ExecutionRequestValidationTest {
 
     @Test
     void validCreateRequestHasNoViolations() {
-        assertThat(VALIDATOR.validate(new CreateExecutionRequest(UUID.randomUUID()))).isEmpty();
+        assertThat(VALIDATOR.validate(new CreateExecutionRequest(UUID.randomUUID(), null))).isEmpty();
     }
 
     @Test
     void missingPreparationIsRejected() {
-        assertThat(VALIDATOR.validate(new CreateExecutionRequest(null)))
+        assertThat(VALIDATOR.validate(new CreateExecutionRequest(null, null)))
                 .anySatisfy(v -> assertThat(v.getPropertyPath()).hasToString("preparationId"));
     }
 
