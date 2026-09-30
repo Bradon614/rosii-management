@@ -10,9 +10,9 @@ import mg.rosii.management.execution.ExecutionStatus;
 
 /**
  * Execution representation — the operational info plus the server-stamped
- * transition timestamps. {@code version} is exposed so clients can supply it on
- * update (409 on stale). No commercial or financial field appears here: the
- * proposal keeps owning them.
+ * transition timestamps and the cancellation info (Feature 15). {@code version}
+ * is exposed so clients can supply it on update (409 on stale). No commercial
+ * or financial field appears here: the proposal keeps owning them.
  */
 public record ExecutionResponse(
         UUID id,
@@ -26,6 +26,7 @@ public record ExecutionResponse(
         OffsetDateTime startedAt,
         OffsetDateTime completedAt,
         OffsetDateTime cancelledAt,
+        String cancellationReason,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         long version) {
@@ -43,6 +44,7 @@ public record ExecutionResponse(
                 execution.getStartedAt(),
                 execution.getCompletedAt(),
                 execution.getCancelledAt(),
+                execution.getCancellationReason(),
                 execution.getCreatedAt(),
                 execution.getUpdatedAt(),
                 execution.getVersion());
