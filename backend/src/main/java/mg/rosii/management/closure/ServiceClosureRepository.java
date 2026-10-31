@@ -20,6 +20,9 @@ public interface ServiceClosureRepository extends JpaRepository<ServiceClosure, 
     /** One active closure per preparation (the 1:1 workflow rule). */
     boolean existsByPreparationIdAndDeletedAtIsNull(UUID preparationId);
 
+    /** The active closure of a preparation (Feature 17 dossier). */
+    Optional<ServiceClosure> findByPreparationIdAndDeletedAtIsNull(UUID preparationId);
+
     /**
      * Listing with optional combined filters; null parameters mean "no filter"
      * (same repository-wide pattern as the other list endpoints — both parameter

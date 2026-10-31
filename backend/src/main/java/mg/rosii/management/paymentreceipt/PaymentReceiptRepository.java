@@ -1,5 +1,6 @@
 package mg.rosii.management.paymentreceipt;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,6 +20,9 @@ public interface PaymentReceiptRepository extends JpaRepository<PaymentReceipt, 
 
     /** One active receipt per payment (the rule of Feature 12). */
     boolean existsByPaymentIdAndDeletedAtIsNull(UUID paymentId);
+
+    /** All active receipts of a set of payments (Feature 17 dossier: no N+1). */
+    List<PaymentReceipt> findByPaymentIdInAndDeletedAtIsNull(Collection<UUID> paymentIds);
 
     /**
      * Listing with optional combined filters; null parameters mean "no filter"
