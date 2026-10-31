@@ -22,6 +22,9 @@ public interface ExecutionRepository extends JpaRepository<Execution, UUID> {
     /** One active execution per preparation (the 1:1 workflow rule). */
     boolean existsByPreparationIdAndDeletedAtIsNull(UUID preparationId);
 
+    /** The active execution of a preparation (Feature 17 dossier). */
+    Optional<Execution> findByPreparationIdAndDeletedAtIsNull(UUID preparationId);
+
     /**
      * Listing with optional combined filters; null parameters mean "no filter".
      *
