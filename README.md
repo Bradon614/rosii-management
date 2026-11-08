@@ -65,7 +65,18 @@ Front-end only (browser, no Tauri window):
 cd desktop
 npm run dev       # http://localhost:5173
 npm run build     # typecheck + production build
+npm test          # Vitest unit/component tests (jsdom)
 ```
+
+During development, Vite proxies `/api` to `http://localhost:8080`, so the
+frontend calls the API on its own origin (no CORS needed and the JWT stays
+same-origin). `VITE_API_BASE_URL` can point the bundle at another origin, which
+requires that origin to allow CORS — the backend does not expose CORS today, so
+the production Tauri window (`tauri://localhost`) cannot reach the API yet.
+
+Authenticated screens are reached through the login form
+(`POST /api/auth/login`); the token is kept in localStorage and every `/api`
+call sends it as a bearer token.
 
 ## Running the backend
 

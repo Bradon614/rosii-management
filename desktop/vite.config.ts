@@ -17,6 +17,15 @@ export default defineConfig({
     // Vite must listen on a fixed port; Tauri expects the devUrl below.
     port: 5173,
     strictPort: true,
+    // Same-origin proxy to the Spring Boot API: the webview calls relative
+    // `/api/...` URLs, so no CORS is required and the JWT stays same-origin.
+    // The production bundle can target another origin through VITE_API_BASE_URL.
+    proxy: {
+      "/api": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
+    },
     // Rust build output is locked by the running app on Windows; never watch it.
     watch: {
       ignored: ["**/src-tauri/**"],
