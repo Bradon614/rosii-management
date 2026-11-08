@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  ClipboardList,
   FileText,
   Pencil,
   Phone,
@@ -157,6 +158,12 @@ export function ClientDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/demandes?clientId=${client.id}`}>
+              <ClipboardList aria-hidden />
+              Demandes
+            </Link>
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link to={`/clients/${client.id}/edit`}>
               <Pencil aria-hidden />
