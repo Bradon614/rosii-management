@@ -12,6 +12,9 @@ import { DemandEditPage } from "@/pages/demand-edit-page";
 import { DemandsPage } from "@/pages/demands-page";
 import { LoginPage } from "@/pages/login-page";
 import { NotFoundPage } from "@/pages/not-found-page";
+import { PaymentCreatePage } from "@/pages/payment-create-page";
+import { PaymentDetailPage } from "@/pages/payment-detail-page";
+import { PaymentsPage } from "@/pages/payments-page";
 import { ProposalCreatePage } from "@/pages/proposal-create-page";
 import { ProposalDetailPage } from "@/pages/proposal-detail-page";
 import { ProposalEditPage } from "@/pages/proposal-edit-page";
@@ -44,6 +47,9 @@ export function AppRoutes() {
         <Route path="propositions/:proposalId" element={<ProposalDetailPage />} />
         <Route path="propositions/:proposalId/edit" element={<ProposalEditPage />} />
         <Route path="propositions/:proposalId/dossier" element={<ServiceDossierPage />} />
+        <Route path="propositions/:proposalId/paiements/new" element={<PaymentCreatePage />} />
+        <Route path="paiements" element={<PaymentsPage />} />
+        <Route path="paiements/:paymentId" element={<PaymentDetailPage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/new" element={<ClientCreatePage />} />
         <Route path="clients/:clientId" element={<ClientDetailPage />} />
