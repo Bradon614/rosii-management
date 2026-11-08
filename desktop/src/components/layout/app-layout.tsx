@@ -7,11 +7,12 @@ import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
 
-/** Main navigation, in business order: clients, their demands, then proposals. */
+/** Main navigation, in business order: clients, demands, proposals, payments. */
 const NAV_ITEMS = [
   { to: "/clients", label: "Clients" },
   { to: "/demandes", label: "Demandes" },
   { to: "/propositions", label: "Propositions" },
+  { to: "/paiements", label: "Paiements" },
 ] as const;
 
 /**
@@ -24,8 +25,8 @@ export function AppLayout() {
   return (
     <div className="bg-background text-foreground flex min-h-screen flex-col">
       <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 border-b backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
             <Link to="/propositions" className="flex items-center gap-2.5">
               <span className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
                 <Building2 className="size-5" aria-hidden />
@@ -38,14 +39,17 @@ export function AppLayout() {
               </span>
             </Link>
 
-            <nav className="flex items-center gap-1" aria-label="Navigation principale">
+            <nav
+              className="flex min-w-0 flex-wrap items-center gap-1"
+              aria-label="Navigation principale"
+            >
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   className={({ isActive }) =>
                     cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      "rounded-md px-2 py-1.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3",
                       isActive
                         ? "bg-secondary text-secondary-foreground"
                         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
