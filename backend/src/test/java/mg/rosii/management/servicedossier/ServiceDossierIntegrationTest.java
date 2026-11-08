@@ -54,6 +54,13 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
     private static final BigDecimal LINE_UNIT_PRICE = new BigDecimal("250000");
     private static final BigDecimal PROPOSAL_TOTAL = new BigDecimal("500000.00");
     private static final BigDecimal DEPOSIT = new BigDecimal("100000");
+    /**
+     * Feature 07 rule (unchanged): a proposal can only be SENT with a
+     * {@code validUntil}. The dossier fixtures go through the real transition
+     * DRAFT -> SENT -> ACCEPTED, so they must supply one like every other
+     * integration test does.
+     */
+    private static final String VALID_UNTIL = "2999-12-31";
 
     @ServiceConnection
     static final PostgreSQLContainer<?> postgres = POSTGRES;
@@ -80,7 +87,12 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
 
     @BeforeEach
     void cleanDataAndAuthenticate() throws Exception {
-        try (var statement = dataSource.getConnection().createStatement()) {
+        // Both resources are declared in the try-with-resources header: obtaining
+        // the connection inline would make only the Statement auto-closable and
+        // leak one pooled connection per test method, exhausting the shared
+        // Hikari pool for the rest of the suite.
+        try (var connection = dataSource.getConnection();
+                var statement = connection.createStatement()) {
             statement.execute("DELETE FROM payment_receipts");
             statement.execute("DELETE FROM invoices");
             statement.execute("DELETE FROM payments");
@@ -139,6 +151,7 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
                 "clientId", clientId,
                 "demandId", demandId,
                 "title", "Mariage Rakoto",
+                "validUntil", VALID_UNTIL,
                 "requiredDeposit", DEPOSIT,
                 "lines", java.util.List.of(line));
     }
@@ -234,6 +247,24 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
         return node.get(field).decimalValue();
     }
 
+    /**
+     * A section that does not exist yet is serialized as an explicit JSON null
+     * (the record always carries the field): it is never an error and never
+     * omitted. {@code assertThat(node).isNull()} cannot be used here — the
+     * actual value is a Jackson {@code NullNode}, not a Java {@code null}.
+     */
+    private static void assertNullSection(JsonNode body, String section) {
+        JsonNode node = body.get(section);
+        assertThat(node).as("%s section must be present in the payload", section).isNotNull();
+        assertThat(node.isNull()).as("%s section must be null", section).isTrue();
+    }
+
+    /** The section exists and carries data (JSON object, not JSON null). */
+    private static void assertPresentSection(JsonNode body, String section) {
+        JsonNode node = body.get(section);
+        assertThat(node == null || node.isNull()).as("%s section must not be null", section).isFalse();
+    }
+
     // ------------------------------------------------------------------- tests
 
     @Test
@@ -288,9 +319,9 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
         assertThat(decimal(body.get("proposal"), "totalPaid")).isEqualByComparingTo("0.00");
         assertThat(decimal(body.get("proposal"), "remainingAmount")).isEqualByComparingTo(PROPOSAL_TOTAL);
         assertThat(body.get("proposal").get("depositReached").asBoolean()).isFalse();
-        assertThat(body.get("preparation")).isNull();
-        assertThat(body.get("execution")).isNull();
-        assertThat(body.get("closure")).isNull();
+        assertNullSection(body, "preparation");
+        assertNullSection(body, "execution");
+        assertNullSection(body, "closure");
     }
 
     @Test
@@ -320,9 +351,9 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
 
         JsonNode body = dossier(proposalId);
 
-        assertThat(body.get("preparation")).isNull();
-        assertThat(body.get("execution")).isNull();
-        assertThat(body.get("closure")).isNull();
+        assertNullSection(body, "preparation");
+        assertNullSection(body, "execution");
+        assertNullSection(body, "closure");
     }
 
     @Test
@@ -338,9 +369,9 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
 
         JsonNode body = dossier(proposalId);
 
-        assertThat(body.get("preparation")).isNotNull();
+        assertPresentSection(body, "preparation");
         assertThat(body.get("execution").get("status").asText()).isEqualTo("PLANNED");
-        assertThat(body.get("closure")).isNull();
+        assertNullSection(body, "closure");
         assertThat(body.get("execution").get("scheduledDate").asText())
                 .isEqualTo(LocalDate.now().plusDays(7).toString());
     }
@@ -377,9 +408,9 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
 
         JsonNode body = dossier(fixture.proposalId());
 
-        assertThat(body.get("preparation")).isNull();
-        assertThat(body.get("execution")).isNull();
-        assertThat(body.get("closure")).isNull();
+        assertNullSection(body, "preparation");
+        assertNullSection(body, "execution");
+        assertNullSection(body, "closure");
         // Payments and proposal data are untouched by the preparation deletion.
         assertThat(body.get("payments")).hasSize(1);
         assertThat(decimal(body.get("proposal"), "totalPaid")).isEqualByComparingTo("150000.00");
