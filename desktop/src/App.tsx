@@ -12,7 +12,9 @@ import { DemandEditPage } from "@/pages/demand-edit-page";
 import { DemandsPage } from "@/pages/demands-page";
 import { LoginPage } from "@/pages/login-page";
 import { NotFoundPage } from "@/pages/not-found-page";
+import { ProposalCreatePage } from "@/pages/proposal-create-page";
 import { ProposalDetailPage } from "@/pages/proposal-detail-page";
+import { ProposalEditPage } from "@/pages/proposal-edit-page";
 import { ProposalsPage } from "@/pages/proposals-page";
 import { ServiceDossierPage } from "@/pages/service-dossier-page";
 
@@ -38,7 +40,9 @@ export function AppRoutes() {
       >
         <Route index element={<Navigate to="/propositions" replace />} />
         <Route path="propositions" element={<ProposalsPage />} />
+        <Route path="propositions/new" element={<ProposalCreatePage />} />
         <Route path="propositions/:proposalId" element={<ProposalDetailPage />} />
+        <Route path="propositions/:proposalId/edit" element={<ProposalEditPage />} />
         <Route path="propositions/:proposalId/dossier" element={<ServiceDossierPage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/new" element={<ClientCreatePage />} />

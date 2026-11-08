@@ -243,6 +243,33 @@ export interface ServiceDossier {
   closure: ServiceClosure | null;
 }
 
+/** `ServiceCategory` of the F05 catalogue. */
+export type ServiceCategory =
+  | "CATERING"
+  | "DECORATION"
+  | "FLORIST"
+  | "TRANSPORT"
+  | "EQUIPMENT_RENTAL"
+  | "HALL_RENTAL"
+  | "CAR_RENTAL"
+  | "CONSTRUCTION"
+  | "REAL_ESTATE"
+  | "OTHER";
+
+/** `ServiceResponse` of the F05 catalogue (a commercial reference, not a line). */
+export interface CatalogueService {
+  id: string;
+  name: string;
+  category: ServiceCategory;
+  description: string | null;
+  defaultUnit: string;
+  referencePrice: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
 /** `MeResponse`. */
 export interface AuthenticatedUser {
   id: string;

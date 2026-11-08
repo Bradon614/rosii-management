@@ -1,17 +1,31 @@
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, FolderOpen, RefreshCw } from "lucide-react";
+import { Link, useLocation, useParams } from "react-router-dom";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CheckCircle2,
+  ClipboardList,
+  FolderOpen,
+  Pencil,
+  RefreshCw,
+  User,
+} from "lucide-react";
 
+import { DetailItem, DetailList, DetailNote } from "@/components/dossier/detail-list";
 import { SectionCard } from "@/components/dossier/section-card";
 import { FinancialSummary } from "@/components/proposals/financial-summary";
+import { ProposalLifecycleCard } from "@/components/proposals/proposal-lifecycle";
 import { ProposalLinesTable } from "@/components/proposals/proposal-lines-table";
 import { ProposalStatusBadge } from "@/components/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDemandBudget } from "@/lib/demand-display";
 import { useApiQuery } from "@/hooks/use-api-query";
-import { formatDateTime } from "@/lib/format";
-import type { Proposal } from "@/types/api";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { demandStatusLabels, demandTypeLabels } from "@/lib/labels";
+import { proposalErrorMessage } from "@/lib/proposals-api";
+import type { Client, Demand, Proposal } from "@/types/api";
 
 function ProposalDetailSkeleton() {
   return (
@@ -19,23 +33,56 @@ function ProposalDetailSkeleton() {
       <Skeleton className="h-5 w-40" />
       <Skeleton className="h-8 w-72" />
       <Skeleton className="h-28 w-full" />
-      <Card className="gap-4 p-5">
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+      <Skeleton className="h-48 w-full" />
     </div>
   );
 }
 
+/** Dates shown under the title, only when they exist. */
+function proposalDates(proposal: Proposal): string {
+  const parts = [`Créée le ${formatDateTime(proposal.createdAt)}`];
+  parts.push(
+    proposal.validUntil
+      ? `Valide jusqu'au ${formatDate(proposal.validUntil)}`
+      : "Validité non renseignée",
+  );
+  if (proposal.sentAt) {
+    parts.push(`Envoyée le ${formatDateTime(proposal.sentAt)}`);
+  }
+  if (proposal.acceptedAt) {
+    parts.push(`Acceptée le ${formatDateTime(proposal.acceptedAt)}`);
+  }
+  if (proposal.refusedAt) {
+    parts.push(`Refusée le ${formatDateTime(proposal.refusedAt)}`);
+  }
+  if (proposal.cancelledAt) {
+    parts.push(`Annulée le ${formatDateTime(proposal.cancelledAt)}`);
+  }
+  return parts.join(" · ");
+}
+
 /**
- * Proposal detail. Its main action is opening the service dossier; the page is
- * otherwise a read-only summary of the proposal itself.
+ * Proposal detail (Features 18 → 21). The F18 dossier access and financial
+ * summary are preserved; Feature 21 adds the demand/client context, the edit
+ * entry point (DRAFT only) and the lifecycle actions of the F07 state machine.
  */
 export function ProposalDetailPage() {
   const { proposalId } = useParams<{ proposalId: string }>();
+  const location = useLocation();
+  const flash = (location.state as { flash?: string } | null)?.flash ?? null;
+
   const { data, error, loading, reload } = useApiQuery<Proposal>(
     proposalId ? `/api/proposals/${proposalId}` : null,
+  );
+  const { data: client } = useApiQuery<Client>(
+    data ? `/api/clients/${data.clientId}` : null,
+  );
+  const { data: demand } = useApiQuery<Demand>(
+    data ? `/api/demands/${data.demandId}` : null,
   );
 
   if (!proposalId) {
@@ -62,9 +109,7 @@ export function ProposalDetailPage() {
       <ErrorState
         title={notFound ? "Proposition introuvable" : "Chargement impossible"}
         description={
-          notFound
-            ? "Cette proposition n'existe pas ou a été supprimée."
-            : error.message
+          notFound ? "Cette proposition n'existe pas ou a été supprimée." : proposalErrorMessage(error)
         }
         action={
           <>
@@ -101,6 +146,14 @@ export function ProposalDetailPage() {
         </Link>
       </div>
 
+      {flash ? (
+        <Alert variant="success">
+          <CheckCircle2 aria-hidden />
+          <AlertTitle>Opération réussie</AlertTitle>
+          <AlertDescription>{flash}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -110,18 +163,75 @@ export function ProposalDetailPage() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight break-words">
             {proposal.title ?? "Proposition sans titre"}
           </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Créée le {formatDateTime(proposal.createdAt)}
-            {proposal.acceptedAt ? ` · Acceptée le ${formatDateTime(proposal.acceptedAt)}` : ""}
-          </p>
+          <p className="text-muted-foreground mt-1 text-sm">{proposalDates(proposal)}</p>
         </div>
-        <Button asChild>
-          <Link to={`/propositions/${proposal.id}/dossier`}>
-            <FolderOpen aria-hidden />
-            Ouvrir le dossier de service
-          </Link>
-        </Button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {proposal.status === "DRAFT" ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/propositions/${proposal.id}/edit`}>
+                <Pencil aria-hidden />
+                Modifier
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild size="sm">
+            <Link to={`/propositions/${proposal.id}/dossier`}>
+              <FolderOpen aria-hidden />
+              Ouvrir le dossier de service
+            </Link>
+          </Button>
+        </div>
       </header>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SectionCard
+          title="Client"
+          description="Client de la proposition"
+          icon={User}
+          action={
+            <Link
+              to={`/clients/${proposal.clientId}`}
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+            >
+              Fiche client
+              <ArrowUpRight className="size-4" aria-hidden />
+            </Link>
+          }
+        >
+          <DetailList className="sm:grid-cols-1">
+            <DetailItem label="Nom" value={client?.name ?? "—"} />
+          </DetailList>
+        </SectionCard>
+
+        <SectionCard
+          title="Demande"
+          description="Demande à l'origine de la proposition"
+          icon={ClipboardList}
+          action={
+            <Link
+              to={`/demandes/${proposal.demandId}`}
+              className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+            >
+              Voir la demande
+              <ArrowUpRight className="size-4" aria-hidden />
+            </Link>
+          }
+        >
+          <DetailList className="sm:grid-cols-1">
+            <DetailItem label="Type" value={demand ? demandTypeLabels[demand.type] : null} />
+            <DetailItem
+              label="Statut"
+              value={demand ? demandStatusLabels[demand.status] : null}
+            />
+            <DetailItem
+              label="Date souhaitée"
+              value={demand?.requestedDate ? formatDate(demand.requestedDate) : null}
+            />
+            <DetailItem label="Budget" value={demand ? formatDemandBudget(demand) : null} />
+          </DetailList>
+        </SectionCard>
+      </div>
 
       <FinancialSummary proposal={proposal} />
 
@@ -138,9 +248,11 @@ export function ProposalDetailPage() {
 
       {proposal.notes ? (
         <SectionCard title="Notes" description="Remarques enregistrées sur la proposition">
-          <p className="text-sm whitespace-pre-line">{proposal.notes}</p>
+          <DetailNote label="Notes" value={proposal.notes} />
         </SectionCard>
       ) : null}
+
+      <ProposalLifecycleCard proposal={proposal} onChanged={reload} onReload={reload} />
     </div>
   );
 }

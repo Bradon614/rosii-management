@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardList,
+  FileText,
   Pencil,
   RefreshCw,
   Trash2,
@@ -204,6 +205,12 @@ export function DemandDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/propositions?demandId=${demand.id}`}>
+              <FileText aria-hidden />
+              Propositions
+            </Link>
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link to={`/demandes/${demand.id}/edit`}>
               <Pencil aria-hidden />
