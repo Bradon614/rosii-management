@@ -5,8 +5,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,6 +20,22 @@ import org.springframework.data.repository.query.Param;
 public interface ProposalRepository extends JpaRepository<Proposal, UUID> {
 
     Optional<Proposal> findByIdAndDeletedAtIsNull(UUID id);
+
+    /**
+     * Same active-proposal lookup as {@link #findByIdAndDeletedAtIsNull}, with a
+     * row-level {@code SELECT ... FOR UPDATE} (PESSIMISTIC_WRITE) lock.
+     *
+     * <p>Two operations need this lock to be serialized on the proposal row:
+     * the deposit-only update (which must check that no active preparation
+     * exists) and preparation creation (which must see the latest deposit).
+     * Without it, a preparation could be inserted between the deposit check and
+     * the write. The lock is scoped to the single proposal row and reuses the
+     * existing JPA mechanism — no global locking architecture is introduced.
+     * Callers must run inside a transaction (both are {@code @Transactional}).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Proposal p where p.id = :id and p.deletedAt is null")
+    Optional<Proposal> findActiveForUpdate(@Param("id") UUID id);
 
     /** All proposal numbers starting with the given PROP-YYYY- prefix (numbering). */
     @Query("select p.number from Proposal p where p.number like concat(:prefix, '%')")

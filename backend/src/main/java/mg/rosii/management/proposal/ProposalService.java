@@ -15,6 +15,7 @@ import mg.rosii.management.client.ClientRepository;
 import mg.rosii.management.demand.Demand;
 import mg.rosii.management.demand.DemandRepository;
 import mg.rosii.management.payment.PaymentRepository;
+import mg.rosii.management.preparation.PreparationRepository;
 import mg.rosii.management.proposal.dto.CreateProposalRequest;
 import mg.rosii.management.proposal.dto.ProposalLineRequest;
 import mg.rosii.management.proposal.dto.ProposalResponse;
@@ -59,14 +60,17 @@ public class ProposalService {
     private final DemandRepository demands;
     private final ServiceRepository services;
     private final PaymentRepository payments;
+    private final PreparationRepository preparations;
 
     public ProposalService(ProposalRepository proposals, ClientRepository clients,
-            DemandRepository demands, ServiceRepository services, PaymentRepository payments) {
+            DemandRepository demands, ServiceRepository services, PaymentRepository payments,
+            PreparationRepository preparations) {
         this.proposals = proposals;
         this.clients = clients;
         this.demands = demands;
         this.services = services;
         this.payments = payments;
+        this.preparations = preparations;
     }
 
     @Transactional
@@ -148,13 +152,21 @@ public class ProposalService {
     }
 
     /**
-     * Changes the requested deposit only (deposit stays editable independently of
-     * the frozen commercial content, until a future preparation feature locks it).
+     * Changes the requested deposit only. The deposit stays editable
+     * independently of the frozen commercial content, until an active
+     * preparation exists for the proposal (Feature 08 rule enforced here, not
+     * only in the UI). The proposal row is locked first so this check and the
+     * write are atomic with respect to concurrent preparation creation, which
+     * takes the same lock.
      */
     @Transactional
     public ProposalResponse updateDeposit(UUID id, BigDecimal requiredDeposit, long expectedVersion) {
-        Proposal proposal = findActive(id);
+        Proposal proposal = findActiveForUpdate(id);
         checkVersion(proposal, expectedVersion);
+        if (preparations.findByProposalIdAndDeletedAtIsNull(id).isPresent()) {
+            throw conflict("the requested deposit is locked: an active preparation already exists"
+                    + " for this proposal");
+        }
         applyDeposit(proposal, requiredDeposit);
         return ProposalResponse.from(proposals.saveAndFlush(proposal),
                 payments.sumActiveByProposalId(proposal.getId()));
@@ -193,6 +205,12 @@ public class ProposalService {
 
     private Proposal findActive(UUID id) {
         return proposals.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "proposal not found"));
+    }
+
+    /** Active proposal locked for update (404 keeps the existing behavior). */
+    private Proposal findActiveForUpdate(UUID id) {
+        return proposals.findActiveForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "proposal not found"));
     }
 
