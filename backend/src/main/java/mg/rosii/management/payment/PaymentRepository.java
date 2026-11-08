@@ -21,18 +21,27 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     /**
      * Listing with optional combined filters; null parameters mean "no filter".
+     *
+     * <p>PostgreSQL cannot type a null-tested {@code LocalDate} parameter: with
+     * {@code (:paymentDate is null or p.paymentDate = :paymentDate)} the generated
+     * SQL is {@code (? is null or payment_date = ?)} and the server answers
+     * {@code could not determine data type of parameter $5} (HTTP 500). The
+     * boolean guard below is the same form already used by
+     * {@code ExecutionRepository}: it keeps the filter meaning "exactly this
+     * local date" and never turns it into a period.
      */
     @Query("""
             select p from Payment p
             where p.deletedAt is null
               and (:proposalId is null or p.proposal.id = :proposalId)
               and (:method is null or p.method = :method)
-              and (:paymentDate is null or p.paymentDate = :paymentDate)
+              and (:dateFiltered = false or p.paymentDate = :paymentDate)
             order by p.paymentDate desc, p.createdAt desc
             """)
     List<Payment> findMatching(@Param("proposalId") UUID proposalId,
             @Param("method") PaymentMethod method,
-            @Param("paymentDate") LocalDate paymentDate);
+            @Param("paymentDate") LocalDate paymentDate,
+            @Param("dateFiltered") boolean dateFiltered);
 
     /** Sum of the active payments of one proposal; 0 when there is none. */
     @Query("""

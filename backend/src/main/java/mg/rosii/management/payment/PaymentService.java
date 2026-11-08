@@ -58,7 +58,9 @@ public class PaymentService {
     /** Lists non-deleted payments with optional combined filters (newest first). */
     @Transactional(readOnly = true)
     public List<PaymentResponse> list(UUID proposalId, PaymentMethod method, LocalDate paymentDate) {
-        return payments.findMatching(proposalId, method, paymentDate).stream()
+        // The boolean guard is what keeps PostgreSQL able to type the LocalDate
+        // parameter (see PaymentRepository): null still means "no date filter".
+        return payments.findMatching(proposalId, method, paymentDate, paymentDate != null).stream()
                 .map(PaymentResponse::from)
                 .toList();
     }
