@@ -223,6 +223,13 @@ export const api = {
   post<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
     return request<T>("POST", path, body, options);
   },
+  put<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
+    return request<T>("PUT", path, body, options);
+  },
+  /** DELETE answers 204: the resolved value is `undefined`. */
+  delete<T = void>(path: string, options: RequestOptions = {}): Promise<T> {
+    return request<T>("DELETE", path, undefined, options);
+  },
 };
 
 /** Extracts the filename of a `Content-Disposition` header, if any. */

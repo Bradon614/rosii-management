@@ -7,6 +7,12 @@ import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
 
+/** Main navigation, in business order: clients first, then their proposals. */
+const NAV_ITEMS = [
+  { to: "/clients", label: "Clients" },
+  { to: "/propositions", label: "Propositions" },
+] as const;
+
 /**
  * Application shell: brand, main navigation, current user and logout.
  * Pages render inside <Outlet />.
@@ -32,19 +38,22 @@ export function AppLayout() {
             </Link>
 
             <nav className="flex items-center gap-1" aria-label="Navigation principale">
-              <NavLink
-                to="/propositions"
-                className={({ isActive }) =>
-                  cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-secondary text-secondary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  )
-                }
-              >
-                Propositions
-              </NavLink>
+              {NAV_ITEMS.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-secondary text-secondary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    )
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
             </nav>
           </div>
 

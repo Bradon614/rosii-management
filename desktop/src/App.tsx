@@ -2,6 +2,10 @@ import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "@/components/layout/app-layout";
 import { RequireAuth } from "@/components/layout/require-auth";
+import { ClientCreatePage } from "@/pages/client-create-page";
+import { ClientDetailPage } from "@/pages/client-detail-page";
+import { ClientEditPage } from "@/pages/client-edit-page";
+import { ClientsPage } from "@/pages/clients-page";
 import { LoginPage } from "@/pages/login-page";
 import { NotFoundPage } from "@/pages/not-found-page";
 import { ProposalDetailPage } from "@/pages/proposal-detail-page";
@@ -32,6 +36,10 @@ export function AppRoutes() {
         <Route path="propositions" element={<ProposalsPage />} />
         <Route path="propositions/:proposalId" element={<ProposalDetailPage />} />
         <Route path="propositions/:proposalId/dossier" element={<ServiceDossierPage />} />
+        <Route path="clients" element={<ClientsPage />} />
+        <Route path="clients/new" element={<ClientCreatePage />} />
+        <Route path="clients/:clientId" element={<ClientDetailPage />} />
+        <Route path="clients/:clientId/edit" element={<ClientEditPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

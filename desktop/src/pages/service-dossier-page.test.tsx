@@ -10,6 +10,7 @@ import {
   buildPayment,
   buildProposal,
   buildReceipt,
+  CLIENT_ID,
   INVOICE_ID,
   normalizeSpaces,
   PROPOSAL_ID,
@@ -40,6 +41,11 @@ describe("ServiceDossierPage — dossier complet", () => {
     expect(screen.getByRole("link", { name: /Voir la proposition/ })).toHaveAttribute(
       "href",
       `/propositions/${PROPOSAL_ID}`,
+    );
+    // Feature 19 added the client screens, so the dossier links to the record.
+    expect(screen.getByRole("link", { name: /Fiche client/ })).toHaveAttribute(
+      "href",
+      `/clients/${CLIENT_ID}`,
     );
   });
 
