@@ -1,5 +1,6 @@
 package mg.rosii.management.invoice;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -19,6 +20,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
     /** One active invoice per payment (the rule of Feature 13). */
     boolean existsByPaymentIdAndDeletedAtIsNull(UUID paymentId);
+
+    /** All active invoices of a set of payments (Feature 17 dossier: no N+1). */
+    List<Invoice> findByPaymentIdInAndDeletedAtIsNull(Collection<UUID> paymentIds);
 
     /**
      * Listing with optional combined filters; null parameters mean "no filter"

@@ -42,6 +42,26 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # services.gradle.org redirects to github.com/gradle/gradle-distributions,
+      # which sometimes answers 5xx (e.g. 504 Gateway Timeout) while the wrapper
+      # downloads the Gradle distribution. That download happens in
+      # GradleWrapperMain, before any compilation or test, so a transient
+      # outage fails the job without validating anything. Pre-fetch it with
+      # retries; once it is in ~/.gradle/wrapper/dists, './gradlew build' never
+      # touches the network for it. This never retries a failing test.
+      - name: Pre-fetch the Gradle distribution
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if ./gradlew --version > /dev/null 2>&1; then
+              echo "Gradle distribution available."
+              exit 0
+            fi
+            echo "Gradle download failed (attempt ${attempt}/5); retrying in $((attempt * 10))s..."
+            sleep $((attempt * 10))
+          done
+          echo "::error::Gradle distribution could not be downloaded after 5 attempts."
+          exit 1
+
       # 'build' compiles, runs the full test suite (Testcontainers integration
       # tests run here because GitHub Linux runners provide Docker) and
       # assembles the boot jar — one command, no redundant test execution.
