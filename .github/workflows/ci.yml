@@ -90,6 +90,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Vitest unit and component tests (jsdom; no browser or network needed).
+      - name: Unit tests
+        run: npm test
+
       # tsc strict typecheck + Vite production build (the existing script).
       # The native Tauri bundle is intentionally not built in this first CI.
       - name: Production build
