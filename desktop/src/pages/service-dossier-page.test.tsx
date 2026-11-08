@@ -13,6 +13,7 @@ import {
   CLIENT_ID,
   INVOICE_ID,
   normalizeSpaces,
+  PREPARATION_ID,
   PROPOSAL_ID,
   RECEIPT_ID,
 } from "@/test/fixtures";
@@ -111,6 +112,17 @@ describe("ServiceDossierPage — dossier complet", () => {
 
     await user.click(screen.getByRole("button", { name: /Actualiser/ }));
     await waitFor(() => expect(dossierCalls()).toHaveLength(2));
+  });
+
+  it("links the preparation section to its F23 detail page", async () => {
+    renderApp(DOSSIER_ROUTE, dossierRoutes(buildDossier()));
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+
+    expect(screen.getByRole("link", { name: /Ouvrir la préparation/ })).toHaveAttribute(
+      "href",
+      `/preparations/${PREPARATION_ID}`,
+    );
   });
 });
 

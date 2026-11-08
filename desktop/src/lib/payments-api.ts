@@ -3,15 +3,14 @@
  *
  * F08 endpoints, verified against the running API:
  * - `GET /api/payments?proposalId=&method=&paymentDate=` (global list, newest
- *   first, no pagination, **no text search**);
+ *   first, no pagination, **no text search**; `paymentDate` is an exact local
+ *   date and is safe to call since the F23 backend fix);
  * - `GET /api/payments/{id}`;
  * - `POST /api/payments` (ACCEPTED proposals only, amount > 0 and never above
  *   the proposal total — both enforced server-side with 409).
  *
- * The `paymentDate` filter parameter exists in the controller but currently
- * fails with a 500 (`could not determine data type of parameter` on the
- * `(? is null or payment_date = ?)` predicate), so the UI deliberately does not
- * expose it: only `proposalId` and `method` are used.
+ * The UI keeps exposing only `proposalId` and `method`: adding the date filter to
+ * the F22 screen is a separate UI decision, outside Feature 23.
  *
  * Update and soft delete exist but are outside Feature 22's scope.
  */

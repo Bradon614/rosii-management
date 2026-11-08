@@ -1,4 +1,4 @@
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -15,6 +15,7 @@ import { DetailItem, DetailList, DetailNote } from "@/components/dossier/detail-
 import { SectionCard } from "@/components/dossier/section-card";
 import { DepositEditor } from "@/components/payments/deposit-editor";
 import { ProposalPaymentsCard } from "@/components/payments/proposal-payments-card";
+import { PreparationManagementCard } from "@/components/preparations/preparation-management-card";
 import { FinancialSummary } from "@/components/proposals/financial-summary";
 import { ProposalLifecycleCard } from "@/components/proposals/proposal-lifecycle";
 import { ProposalLinesTable } from "@/components/proposals/proposal-lines-table";
@@ -27,7 +28,8 @@ import { formatDemandBudget } from "@/lib/demand-display";
 import { useApiQuery } from "@/hooks/use-api-query";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { demandStatusLabels, demandTypeLabels } from "@/lib/labels";
-import { proposalErrorMessage } from "@/lib/proposals-api";
+import { proposalErrorMessage, proposalsApi } from "@/lib/proposals-api";
+import { preparationPathByProposal } from "@/lib/preparations-api";
 import type { Client, Demand, Preparation, Proposal } from "@/types/api";
 
 function ProposalDetailSkeleton() {
@@ -76,6 +78,7 @@ function proposalDates(proposal: Proposal): string {
 export function ProposalDetailPage() {
   const { proposalId } = useParams<{ proposalId: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const flash = (location.state as { flash?: string } | null)?.flash ?? null;
 
   const { data, error, loading, reload } = useApiQuery<Proposal>(
@@ -87,10 +90,38 @@ export function ProposalDetailPage() {
   const { data: demand } = useApiQuery<Demand>(
     data ? `/api/demands/${data.demandId}` : null,
   );
-  // An existing preparation locks the deposit (Feature 08 rule); 404 = none yet.
-  const { data: preparation } = useApiQuery<Preparation>(
-    data ? `/api/preparations?proposalId=${data.id}` : null,
+  // An existing preparation locks the deposit (Feature 08 rule). F09 answers 404
+  // when there is none, which is not an error here.
+  const {
+    data: preparation,
+    error: preparationError,
+    loading: preparationLoading,
+    reload: reloadPreparation,
+  } = useApiQuery<Preparation>(
+    data ? preparationPathByProposal(data.id) : null,
   );
+  const preparationLoadError =
+    preparationError && !preparationError.isNotFound ? preparationError : null;
+
+  /**
+   * After a successful creation: re-read the proposal (never keep the snapshot
+   * that predates the preparation), refresh the local queries, then open the new
+   * preparation. A failed refresh must not cancel the redirect.
+   */
+  async function handlePreparationCreated(created: Preparation) {
+    if (data) {
+      try {
+        await proposalsApi.get(data.id);
+      } catch {
+        // The preparation exists; the detail page will show the fresh state.
+      }
+    }
+    reload();
+    reloadPreparation();
+    navigate(`/preparations/${created.id}`, {
+      state: { flash: "La préparation a été créée." },
+    });
+  }
 
   if (!proposalId) {
     return (
@@ -249,10 +280,22 @@ export function ProposalDetailPage() {
       >
         <DepositEditor
           proposal={proposal}
-          canEdit={!preparation}
+          canEdit={!preparation && !preparationLoadError}
           onUpdated={reload}
         />
       </SectionCard>
+
+      <PreparationManagementCard
+        proposal={proposal}
+        preparation={preparation}
+        loading={preparationLoading}
+        loadError={preparationLoadError}
+        onReload={() => {
+          reload();
+          reloadPreparation();
+        }}
+        onCreated={handlePreparationCreated}
+      />
 
       <ProposalPaymentsCard proposal={proposal} />
 

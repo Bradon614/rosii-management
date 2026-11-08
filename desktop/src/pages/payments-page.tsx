@@ -32,9 +32,9 @@ const PAYMENT_METHODS = Object.keys(paymentMethodLabels) as PaymentMethod[];
 
 /**
  * Global payment list (Feature 22). F08 exposes `GET /api/payments` with
- * `proposalId` and `method` filters and no text search — only those are used.
- * The `paymentDate` filter of the controller is not exposed: it currently fails
- * with a 500 server-side (see the API module).
+ * `proposalId`, `method` and `paymentDate` filters and no text search. The
+ * `paymentDate` parameter works again since the F23 backend fix, but this F22
+ * screen still exposes only `proposalId` and `method`.
  */
 export function PaymentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();

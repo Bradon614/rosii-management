@@ -8,7 +8,10 @@ export interface MockReply {
   headers?: Record<string, string>;
 }
 
-export type MockHandler = (request: { url: string; init: RequestInit }) => MockReply;
+export type MockHandler = (request: {
+  url: string;
+  init: RequestInit;
+}) => MockReply | Promise<MockReply>;
 
 export interface ApiMock {
   fetchMock: ReturnType<typeof vi.fn>;
@@ -73,7 +76,9 @@ export function mockApi(routes: Record<string, MockHandler>): ApiMock {
     if (!handler) {
       throw new Error(`Unexpected API call: ${method} ${url}`);
     }
-    return buildResponse(handler({ url, init }));
+    // Handlers may be asynchronous so a test can hold a response open (loading
+    // states, double-submission guards) without bypassing the shared mock.
+    return buildResponse(await handler({ url, init }));
   });
 
   vi.stubGlobal("fetch", fetchMock);

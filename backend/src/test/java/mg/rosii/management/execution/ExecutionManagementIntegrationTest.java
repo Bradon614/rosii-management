@@ -145,14 +145,16 @@ class ExecutionManagementIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk());
     }
 
-    private void pay(String proposalId, String amount) throws Exception {
-        mockMvc.perform(post("/api/payments").header("Authorization", auth)
+    private String pay(String proposalId, String amount) throws Exception {
+        String body = mockMvc.perform(post("/api/payments").header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"proposalId": "%s", "amount": %s, "method": "CASH",
                                  "paymentDate": "2026-09-20"}
                                 """.formatted(proposalId, amount)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).get("id").asText();
     }
 
     private String prepare(String proposalId, int expected) throws Exception {
@@ -283,24 +285,19 @@ class ExecutionManagementIntegrationTest extends IntegrationTestSupport {
         assertThat(executions.count()).isZero();
     }
 
-    /** Regle 8 - required deposit no longer reached (raised after preparation): 409. */
+    /** Regle 8 - required deposit no longer reached (paid amount falls below): 409. */
     @Test
     void refusesCreationWhenDepositNotReached() throws Exception {
         String proposalId = createAcceptedProposal("2000000");
-        pay(proposalId, "2000000");
+        String paymentId = pay(proposalId, "2000000");
         String preparationId = objectMapper.readTree(prepare(proposalId, 201)).get("id").asText();
 
-        // Raise the required deposit above what was paid (still <= the 4M total):
-        // creation re-derives depositReached and refuses (2M < 3M).
-        long proposalVersion = objectMapper.readTree(mockMvc.perform(get("/api/proposals/" + proposalId)
-                        .header("Authorization", auth)).andExpect(status().isOk())
-                        .andReturn().getResponse().getContentAsString())
-                .get("version").asLong();
-        mockMvc.perform(patch("/api/proposals/" + proposalId + "/deposit")
-                        .header("Authorization", auth)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"requiredDeposit\": 3000000, \"version\": %d}".formatted(proposalVersion)))
-                .andExpect(status().isOk());
+        // Feature 23 locks the requested deposit as soon as an active preparation
+        // exists, so this legal state is reached by soft-deleting the payment
+        // (F08: it leaves every total) instead of PATCHing the locked deposit.
+        // The execution rule under test is unchanged: it re-derives depositReached.
+        mockMvc.perform(delete("/api/payments/" + paymentId).header("Authorization", auth))
+                .andExpect(status().isNoContent());
 
         execute(preparationId, 409);
         assertThat(executions.count()).isZero();

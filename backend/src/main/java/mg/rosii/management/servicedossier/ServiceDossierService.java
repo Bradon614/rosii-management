@@ -76,7 +76,7 @@ public class ServiceDossierService {
         Proposal proposal = proposals.findByIdAndDeletedAtIsNull(proposalId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "proposal not found"));
 
-        List<Payment> activePayments = payments.findMatching(proposalId, null, null);
+        List<Payment> activePayments = payments.findMatching(proposalId, null, null, false);
         List<UUID> paymentIds = activePayments.stream().map(Payment::getId).toList();
 
         List<PaymentReceiptResponse> receiptResponses = paymentIds.isEmpty()

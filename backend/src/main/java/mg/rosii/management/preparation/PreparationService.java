@@ -41,7 +41,11 @@ public class PreparationService {
 
     @Transactional
     public PreparationResponse create(CreatePreparationRequest request) {
-        Proposal proposal = proposals.findByIdAndDeletedAtIsNull(request.proposalId())
+        // Lock the proposal first: the deposit update takes the same row lock, so
+        // a preparation cannot be inserted concurrently while a direct API call is
+        // changing the deposit. This also makes the eligibility checks (status,
+        // deposit) and the insert follow one consistent proposal state.
+        Proposal proposal = proposals.findActiveForUpdate(request.proposalId())
                 .orElseThrow(() -> notFound("proposal not found"));
         if (proposal.getStatus() != ProposalStatus.ACCEPTED) {
             throw conflict("preparation requires an ACCEPTED proposal");
