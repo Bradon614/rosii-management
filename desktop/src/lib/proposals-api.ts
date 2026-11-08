@@ -94,8 +94,9 @@ export const proposalsApi = {
     return api.patch<Proposal>(`/api/proposals/${id}/status`, { status, version });
   },
   /**
-   * Deposit-only update (F07 `PATCH /{id}/deposit`, version required). The
-   * backend currently applies no preparation lock; Feature 22 decides in the UI.
+   * Deposit-only update (F07 `PATCH /{id}/deposit`, version required). F23 fixes
+   * the F08 rule server-side: once an active preparation exists the backend
+   * answers 409, so the UI can no longer be the only guard.
    */
   updateDeposit(id: string, requiredDeposit: number, version: number): Promise<Proposal> {
     return api.patch<Proposal>(`/api/proposals/${id}/deposit`, { requiredDeposit, version });
