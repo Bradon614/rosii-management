@@ -103,3 +103,11 @@ export function formatTime(value: string | null | undefined): string {
   const match = /^(\d{2}):(\d{2})/.exec(value);
   return match ? `${match[1]}:${match[2]}` : EMPTY_VALUE;
 }
+
+/** Today's local date as `YYYY-MM-DD` (the backend compares local dates). */
+export function todayIsoDate(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
