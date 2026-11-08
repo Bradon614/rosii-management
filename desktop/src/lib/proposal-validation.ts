@@ -92,31 +92,10 @@ export function createEmptyProposalForm(): ProposalFormValues {
   };
 }
 
-export type ParsedDecimal =
-  | { valid: true; value: number | null }
-  | { valid: false; value: null };
+// Shared decimal parsing/rounding (also used by the payment form).
+import { parseDecimal, round2 } from "@/lib/decimal";
 
-/** Accepts spaces and a French decimal comma, then enforces numeric(14,x). */
-export function parseDecimal(
-  raw: string,
-  integerDigits: number,
-  fractionDigits: number,
-): ParsedDecimal {
-  const normalized = raw.replace(/[\s\u202f\u00a0]/g, "").replace(",", ".");
-  if (normalized.length === 0) {
-    return { valid: true, value: null };
-  }
-  const pattern = new RegExp(`^\\d{1,${integerDigits}}(\\.\\d{1,${fractionDigits}})?$`);
-  if (!pattern.test(normalized)) {
-    return { valid: false, value: null };
-  }
-  return { valid: true, value: Number(normalized) };
-}
-
-/** HALF_UP at 2 decimals, as `ProposalLine.getLineTotal()` does. */
-export function round2(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
+export { parseDecimal, round2 };
 
 export interface ProposalEstimate {
   lineTotals: number[];

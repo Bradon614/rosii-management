@@ -93,6 +93,13 @@ export const proposalsApi = {
   changeStatus(id: string, status: ProposalStatus, version: number): Promise<Proposal> {
     return api.patch<Proposal>(`/api/proposals/${id}/status`, { status, version });
   },
+  /**
+   * Deposit-only update (F07 `PATCH /{id}/deposit`, version required). The
+   * backend currently applies no preparation lock; Feature 22 decides in the UI.
+   */
+  updateDeposit(id: string, requiredDeposit: number, version: number): Promise<Proposal> {
+    return api.patch<Proposal>(`/api/proposals/${id}/deposit`, { requiredDeposit, version });
+  },
 };
 
 /**
