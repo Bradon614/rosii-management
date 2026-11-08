@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
 
-/** Main navigation, in business order: clients first, then their proposals. */
+/** Main navigation, in business order: clients, their demands, then proposals. */
 const NAV_ITEMS = [
   { to: "/clients", label: "Clients" },
+  { to: "/demandes", label: "Demandes" },
   { to: "/propositions", label: "Propositions" },
 ] as const;
 
