@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   CheckCircle2,
   ClipboardList,
+  Coins,
   FolderOpen,
   Pencil,
   RefreshCw,
@@ -12,6 +13,8 @@ import {
 
 import { DetailItem, DetailList, DetailNote } from "@/components/dossier/detail-list";
 import { SectionCard } from "@/components/dossier/section-card";
+import { DepositEditor } from "@/components/payments/deposit-editor";
+import { ProposalPaymentsCard } from "@/components/payments/proposal-payments-card";
 import { FinancialSummary } from "@/components/proposals/financial-summary";
 import { ProposalLifecycleCard } from "@/components/proposals/proposal-lifecycle";
 import { ProposalLinesTable } from "@/components/proposals/proposal-lines-table";
@@ -25,7 +28,7 @@ import { useApiQuery } from "@/hooks/use-api-query";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { demandStatusLabels, demandTypeLabels } from "@/lib/labels";
 import { proposalErrorMessage } from "@/lib/proposals-api";
-import type { Client, Demand, Proposal } from "@/types/api";
+import type { Client, Demand, Preparation, Proposal } from "@/types/api";
 
 function ProposalDetailSkeleton() {
   return (
@@ -83,6 +86,10 @@ export function ProposalDetailPage() {
   );
   const { data: demand } = useApiQuery<Demand>(
     data ? `/api/demands/${data.demandId}` : null,
+  );
+  // An existing preparation locks the deposit (Feature 08 rule); 404 = none yet.
+  const { data: preparation } = useApiQuery<Preparation>(
+    data ? `/api/preparations?proposalId=${data.id}` : null,
   );
 
   if (!proposalId) {
@@ -234,6 +241,20 @@ export function ProposalDetailPage() {
       </div>
 
       <FinancialSummary proposal={proposal} />
+
+      <SectionCard
+        title="Dépôt requis"
+        description="Avance demandée au client (elle n'est pas un paiement)"
+        icon={Coins}
+      >
+        <DepositEditor
+          proposal={proposal}
+          canEdit={!preparation}
+          onUpdated={reload}
+        />
+      </SectionCard>
+
+      <ProposalPaymentsCard proposal={proposal} />
 
       <SectionCard
         title="Lignes de la proposition"
