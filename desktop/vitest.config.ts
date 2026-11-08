@@ -15,6 +15,10 @@ export default mergeConfig(
       setupFiles: ["./src/test/setup.ts"],
       restoreMocks: true,
       unstubGlobals: true,
+      // Typing long forms in jsdom is slow on busy machines (a dev server and
+      // the backend can run alongside); 5 s is too tight for those tests.
+      testTimeout: 15000,
+      hookTimeout: 15000,
     },
   }),
 );

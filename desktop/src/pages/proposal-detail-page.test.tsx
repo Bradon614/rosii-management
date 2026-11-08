@@ -4,6 +4,10 @@ import userEvent from "@testing-library/user-event";
 
 import {
   buildClient,
+  buildDossier,
+  buildInvoice,
+  buildPayment,
+  buildReceipt,
   buildDemand,
   buildProposal,
   CLIENT_ID,
@@ -21,6 +25,11 @@ function routes(proposal: unknown, extra: Record<string, MockHandler> = {}): Rec
     [`GET /api/proposals/${PROPOSAL_ID}`]: () => ({ body: proposal }),
     [`GET /api/clients/${CLIENT_ID}`]: () => ({ body: buildClient() }),
     [`GET /api/demands/${DEMAND_ID}`]: () => ({ body: buildDemand() }),
+    // Feature 22 adds the payments card and the deposit editor to this page.
+    [`GET /api/service-dossiers/${PROPOSAL_ID}`]: () => ({
+      body: { payments: [], receipts: [], invoices: [] },
+    }),
+    [`GET /api/preparations?proposalId=${PROPOSAL_ID}`]: () => ({ status: 404 }),
     ...extra,
   };
 }
@@ -215,5 +224,131 @@ describe("ProposalDetailPage — transitions", () => {
     expect(
       screen.getByRole("button", { name: "Recharger la proposition" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("ProposalDetailPage — paiements et dépôt (F22)", () => {
+  it("shows the deposit and updates it with the current version", async () => {
+    const user = userEvent.setup();
+    const draft = buildProposal({ status: "DRAFT", sentAt: null, requiredDeposit: 100000 });
+    const { mock } = renderApp(
+      PATH,
+      routes(draft, {
+        [`PATCH /api/proposals/${PROPOSAL_ID}/deposit`]: () => ({
+          body: { ...draft, requiredDeposit: 120000, version: 4 },
+        }),
+      }),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+    expect(screen.getByTestId("deposit-value").textContent).toMatch(/100\s000\sAr/);
+
+    await user.click(screen.getByRole("button", { name: "Modifier le dépôt" }));
+    const input = screen.getByLabelText("Nouveau dépôt demandé (Ar)");
+    await user.clear(input);
+    await user.type(input, "120000");
+    await user.click(screen.getByRole("button", { name: "Enregistrer le dépôt" }));
+
+    await waitFor(() =>
+      expect(
+        mock.calls.some(
+          (call) =>
+            call.method === "PATCH" && call.url === `/api/proposals/${PROPOSAL_ID}/deposit`,
+        ),
+      ).toBe(true),
+    );
+    expect(mock.calls.find((call) => call.url.endsWith("/deposit"))?.body).toEqual({
+      requiredDeposit: 120000,
+      version: 3,
+    });
+    expect(await screen.findByText("Le dépôt demandé a été mis à jour.")).toBeInTheDocument();
+  });
+
+  it("refuses a deposit above the proposal total without calling the API", async () => {
+    const user = userEvent.setup();
+    const { mock } = renderApp(PATH, routes(buildProposal({ status: "DRAFT", sentAt: null })));
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+    await user.click(screen.getByRole("button", { name: "Modifier le dépôt" }));
+    const input = screen.getByLabelText("Nouveau dépôt demandé (Ar)");
+    await user.clear(input);
+    await user.type(input, "600000");
+    await user.click(screen.getByRole("button", { name: "Enregistrer le dépôt" }));
+
+    expect(screen.getByText(/ne peut pas dépasser le total de la proposition/)).toBeInTheDocument();
+    expect(mock.calls.some((call) => call.url.endsWith("/deposit"))).toBe(false);
+  });
+
+  it("locks the deposit once the preparation has started", async () => {
+    renderApp(
+      PATH,
+      routes(buildProposal({ status: "ACCEPTED", acceptedAt: "2026-11-08T10:00:00Z" }), {
+        [`GET /api/preparations?proposalId=${PROPOSAL_ID}`]: () => ({
+          body: {
+            id: "prep-1",
+            proposalId: PROPOSAL_ID,
+            proposalNumber: "PROP-2026-0001",
+            createdAt: "2026-11-08T10:00:00Z",
+            updatedAt: "2026-11-08T10:00:00Z",
+            version: 0,
+          },
+        }),
+      }),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+    await screen.findByText(/Le dépôt n'est plus modifiable/);
+
+    expect(screen.queryByRole("button", { name: "Modifier le dépôt" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Le dépôt n'est plus modifiable/)).toBeInTheDocument();
+  });
+
+  it("lists the payments of the proposal with their documents", async () => {
+    const dossier = buildDossier({
+      payments: [buildPayment()],
+      receipts: [buildReceipt()],
+      invoices: [buildInvoice()],
+    });
+    renderApp(
+      PATH,
+      routes(buildProposal({ status: "ACCEPTED", acceptedAt: "2026-11-08T10:00:00Z" }), {
+        [`GET /api/service-dossiers/${PROPOSAL_ID}`]: () => ({ body: dossier }),
+      }),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+
+    expect(await screen.findByText("REC-2026-0001")).toBeInTheDocument();
+    expect(screen.getByText("FAC-2026-0001")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "PDF du reçu REC-2026-0001" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "PDF de la facture FAC-2026-0001" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/150\s000\sAr/).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("link", { name: /Enregistrer un paiement/ }),
+    ).toHaveAttribute("href", `/propositions/${PROPOSAL_ID}/paiements/new`);
+    expect(screen.getByRole("link", { name: /Voir le paiement de/ })).toBeInTheDocument();
+  });
+
+  it("shows no payment action on a non-accepted proposal", async () => {
+    renderApp(PATH, routes(buildProposal({ status: "DRAFT", sentAt: null })));
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+
+    expect(await screen.findByText("Aucun paiement")).toBeInTheDocument();
+    expect(screen.getByText(/Seule une proposition acceptée peut recevoir des paiements/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Enregistrer un paiement/ })).not.toBeInTheDocument();
+  });
+
+  it("hides the payment action when the proposal is fully paid", async () => {
+    renderApp(
+      PATH,
+      routes(buildProposal({ status: "ACCEPTED", totalPaid: 500000, remainingAmount: 0 })),
+    );
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+
+    expect(screen.queryByRole("link", { name: /Enregistrer un paiement/ })).not.toBeInTheDocument();
   });
 });
