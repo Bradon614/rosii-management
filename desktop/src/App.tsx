@@ -8,6 +8,7 @@ import { ClientEditPage } from "@/pages/client-edit-page";
 import { ClientsPage } from "@/pages/clients-page";
 import { ClosureDetailPage } from "@/pages/closure-detail-page";
 import { ClosuresPage } from "@/pages/closures-page";
+import { DashboardPage } from "@/pages/dashboard-page";
 import { DemandCreatePage } from "@/pages/demand-create-page";
 import { DemandDetailPage } from "@/pages/demand-detail-page";
 import { DemandEditPage } from "@/pages/demand-edit-page";
@@ -47,7 +48,8 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route index element={<Navigate to="/propositions" replace />} />
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="propositions" element={<ProposalsPage />} />
         <Route path="propositions/new" element={<ProposalCreatePage />} />
         <Route path="propositions/:proposalId" element={<ProposalDetailPage />} />

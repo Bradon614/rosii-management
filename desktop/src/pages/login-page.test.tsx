@@ -14,13 +14,17 @@ const LOGIN_RESPONSE = {
 };
 
 describe("LoginPage", () => {
-  it("stores the token returned by the API and opens the proposals page", async () => {
+  it("stores the token returned by the API and opens the dashboard", async () => {
     const user = userEvent.setup();
     const { mock } = renderApp(
       "/login",
       {
         "POST /api/auth/login": () => ({ body: LOGIN_RESPONSE }),
+        "GET /api/demands": () => ({ body: [] }),
         "GET /api/proposals": () => ({ body: [] }),
+        "GET /api/payments": () => ({ body: [] }),
+        "GET /api/executions": () => ({ body: [] }),
+        "GET /api/closures": () => ({ body: [] }),
       },
       { authenticated: false },
     );
@@ -29,7 +33,10 @@ describe("LoginPage", () => {
     await user.type(screen.getByLabelText("Mot de passe"), "mot-de-passe");
     await user.click(screen.getByRole("button", { name: /Se connecter/ }));
 
-    expect(await screen.findByText("Aucune proposition")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Tableau de bord" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Aucune activité enregistrée")).toBeInTheDocument();
     expect(window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBe("fresh-jwt");
 
     const loginCall = mock.calls.find((call) => call.url === "/api/auth/login");
