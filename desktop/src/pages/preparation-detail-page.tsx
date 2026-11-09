@@ -12,6 +12,7 @@ import {
 
 import { DetailItem, DetailList } from "@/components/dossier/detail-list";
 import { SectionCard } from "@/components/dossier/section-card";
+import { ClosureManagementCard } from "@/components/closures/closure-management-card";
 import { ExecutionManagementCard } from "@/components/executions/execution-management-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,13 @@ export function PreparationDetailPage() {
     });
   }
 
+  /** Opens the freshly created closure; the detail page re-reads it from the API. */
+  function handleClosureCreated(created: ServiceClosure) {
+    navigate(`/closures/${created.id}`, {
+      state: { flash: "Le service a été clôturé." },
+    });
+  }
+
   if (!preparationId) {
     return (
       <ErrorState
@@ -153,8 +161,15 @@ export function PreparationDetailPage() {
   }
 
   const preparation = data;
-  const hasExecution = (executions?.length ?? 0) > 0;
-  const hasClosure = (closures?.length ?? 0) > 0;
+  const execution = executions?.[0] ?? null;
+  const closure = closures?.[0] ?? null;
+  const hasExecution = execution !== null;
+  const hasClosure = closure !== null;
+  const executionsBusy =
+    executionsLoading || (executions === null && executionsError === null);
+  const closuresBusy = closuresLoading || (closures === null && closuresError === null);
+  // Keep the F23 deletion guard on the original loading contract: it must not
+  // change behaviour of the existing preparation screen.
   const relationCheckLoading = executionsLoading || closuresLoading;
   const relationCheckUnavailable = executionsError !== null || closuresError !== null;
 
@@ -227,6 +242,21 @@ export function PreparationDetailPage() {
       <ExecutionManagementCard
         preparation={preparation}
         onCreated={handleExecutionCreated}
+      />
+
+      <ClosureManagementCard
+        preparation={preparation}
+        execution={execution}
+        closure={closure}
+        executionLoading={executionsBusy}
+        executionError={executionsError}
+        closureLoading={closuresBusy}
+        closureError={closuresError}
+        onReload={() => {
+          reloadExecutions();
+          reloadClosures();
+        }}
+        onCreated={handleClosureCreated}
       />
 
       <SectionCard

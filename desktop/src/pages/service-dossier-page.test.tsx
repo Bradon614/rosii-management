@@ -11,6 +11,7 @@ import {
   buildProposal,
   buildReceipt,
   CLIENT_ID,
+  CLOSURE_ID,
   EXECUTION_ID,
   INVOICE_ID,
   normalizeSpaces,
@@ -134,6 +135,17 @@ describe("ServiceDossierPage — dossier complet", () => {
     expect(screen.getByRole("link", { name: "Ouvrir l'exécution" })).toHaveAttribute(
       "href",
       `/executions/${EXECUTION_ID}`,
+    );
+  });
+
+  it("links the closure section to its F25 detail page", async () => {
+    renderApp(DOSSIER_ROUTE, dossierRoutes(buildDossier()));
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+
+    expect(screen.getByRole("link", { name: "Ouvrir la clôture" })).toHaveAttribute(
+      "href",
+      `/closures/${CLOSURE_ID}`,
     );
   });
 });
