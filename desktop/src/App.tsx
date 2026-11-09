@@ -6,6 +6,8 @@ import { ClientCreatePage } from "@/pages/client-create-page";
 import { ClientDetailPage } from "@/pages/client-detail-page";
 import { ClientEditPage } from "@/pages/client-edit-page";
 import { ClientsPage } from "@/pages/clients-page";
+import { ClosureDetailPage } from "@/pages/closure-detail-page";
+import { ClosuresPage } from "@/pages/closures-page";
 import { DemandCreatePage } from "@/pages/demand-create-page";
 import { DemandDetailPage } from "@/pages/demand-detail-page";
 import { DemandEditPage } from "@/pages/demand-edit-page";
@@ -58,6 +60,8 @@ export function AppRoutes() {
         <Route path="executions" element={<ExecutionsPage />} />
         <Route path="executions/:executionId" element={<ExecutionDetailPage />} />
         <Route path="executions/:executionId/edit" element={<ExecutionEditPage />} />
+        <Route path="closures" element={<ClosuresPage />} />
+        <Route path="closures/:closureId" element={<ClosureDetailPage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/new" element={<ClientCreatePage />} />
         <Route path="clients/:clientId" element={<ClientDetailPage />} />

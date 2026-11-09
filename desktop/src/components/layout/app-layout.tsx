@@ -7,12 +7,13 @@ import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
 
-/** Main navigation, in business order: clients, demands, proposals, executions, payments. */
+/** Main navigation, in business order: clients, demands, proposals, executions, closures, payments. */
 const NAV_ITEMS = [
   { to: "/clients", label: "Clients" },
   { to: "/demandes", label: "Demandes" },
   { to: "/propositions", label: "Propositions" },
   { to: "/executions", label: "Exécutions" },
+  { to: "/closures", label: "Clôtures" },
   { to: "/paiements", label: "Paiements" },
 ] as const;
 
