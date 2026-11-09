@@ -27,6 +27,7 @@ import { ProposalDetailPage } from "@/pages/proposal-detail-page";
 import { ProposalEditPage } from "@/pages/proposal-edit-page";
 import { ProposalsPage } from "@/pages/proposals-page";
 import { ServiceDossierPage } from "@/pages/service-dossier-page";
+import { SettingsPage } from "@/pages/settings-page";
 
 /**
  * Route table of the application. Exported separately from the router so tests
@@ -50,6 +51,7 @@ export function AppRoutes() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="propositions" element={<ProposalsPage />} />
         <Route path="propositions/new" element={<ProposalCreatePage />} />
         <Route path="propositions/:proposalId" element={<ProposalDetailPage />} />
