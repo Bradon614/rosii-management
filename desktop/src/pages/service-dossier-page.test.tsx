@@ -11,6 +11,7 @@ import {
   buildProposal,
   buildReceipt,
   CLIENT_ID,
+  EXECUTION_ID,
   INVOICE_ID,
   normalizeSpaces,
   PREPARATION_ID,
@@ -122,6 +123,17 @@ describe("ServiceDossierPage — dossier complet", () => {
     expect(screen.getByRole("link", { name: /Ouvrir la préparation/ })).toHaveAttribute(
       "href",
       `/preparations/${PREPARATION_ID}`,
+    );
+  });
+
+  it("links the execution section to its F24 detail page", async () => {
+    renderApp(DOSSIER_ROUTE, dossierRoutes(buildDossier()));
+
+    await screen.findByRole("heading", { level: 1, name: "Mariage Rakoto" });
+
+    expect(screen.getByRole("link", { name: "Ouvrir l'exécution" })).toHaveAttribute(
+      "href",
+      `/executions/${EXECUTION_ID}`,
     );
   });
 });

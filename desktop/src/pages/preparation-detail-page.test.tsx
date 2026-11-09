@@ -27,6 +27,7 @@ function routes(extra: Record<string, MockHandler> = {}): Record<string, MockHan
     [`GET ${PREPARATION_PATH}`]: () => ({ body: buildPreparation() }),
     [`GET ${EXECUTIONS_PATH}`]: () => ({ body: [] }),
     [`GET ${CLOSURES_PATH}`]: () => ({ body: [] }),
+    [`GET /api/proposals/${PROPOSAL_ID}`]: () => ({ body: buildProposal() }),
     ...extra,
   };
 }

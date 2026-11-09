@@ -1,4 +1,5 @@
 import { CalendarClock } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { DetailItem, DetailList, DetailNote } from "@/components/dossier/detail-list";
 import { SectionCard } from "@/components/dossier/section-card";
@@ -18,7 +19,19 @@ export function ExecutionSection({ execution }: { execution: Execution | null })
       title="Exécution"
       description="Déroulement de la prestation"
       icon={CalendarClock}
-      action={execution ? <ExecutionStatusBadge status={execution.status} /> : null}
+      action={
+        execution ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <ExecutionStatusBadge status={execution.status} />
+            <Link
+              to={`/executions/${execution.id}`}
+              className="text-muted-foreground hover:text-foreground text-sm hover:underline hover:underline-offset-4"
+            >
+              Ouvrir l&apos;exécution
+            </Link>
+          </div>
+        ) : null
+      }
     >
       {execution === null ? (
         <EmptyState
