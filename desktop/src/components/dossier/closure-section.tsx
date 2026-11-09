@@ -1,4 +1,5 @@
 import { BadgeCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { DetailItem, DetailList, DetailNote } from "@/components/dossier/detail-list";
 import { SectionCard } from "@/components/dossier/section-card";
@@ -18,7 +19,19 @@ export function ClosureSection({ closure }: { closure: ServiceClosure | null }) 
       title="Clôture"
       description="Fin officielle de la prestation"
       icon={BadgeCheck}
-      action={closure ? <ClosureStatusBadge status={closure.status} /> : null}
+      action={
+        closure ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <ClosureStatusBadge status={closure.status} />
+            <Link
+              to={`/closures/${closure.id}`}
+              className="text-muted-foreground hover:text-foreground text-sm hover:underline hover:underline-offset-4"
+            >
+              Ouvrir la clôture
+            </Link>
+          </div>
+        ) : null
+      }
     >
       {closure === null ? (
         <EmptyState
