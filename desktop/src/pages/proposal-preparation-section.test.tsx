@@ -41,6 +41,7 @@ function routes(
 const DETAIL_ROUTES: Record<string, MockHandler> = {
   [`GET ${PREPARATION_PATH}`]: () => ({ body: buildPreparation() }),
   [`GET /api/executions?preparationId=${PREPARATION_ID}`]: () => ({ body: [] }),
+  [`GET /api/closures?preparationId=${PREPARATION_ID}`]: () => ({ body: [] }),
 };
 
 async function openProposal(): Promise<void> {
