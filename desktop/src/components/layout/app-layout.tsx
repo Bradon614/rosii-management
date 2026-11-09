@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
 
-/** Main navigation, in business order: clients, demands, proposals, executions, closures, payments. */
+/** Main navigation, in business order: dashboard, clients, demands, proposals, executions, closures, payments. */
 const NAV_ITEMS = [
+  { to: "/dashboard", label: "Tableau de bord" },
   { to: "/clients", label: "Clients" },
   { to: "/demandes", label: "Demandes" },
   { to: "/propositions", label: "Propositions" },
@@ -29,7 +30,7 @@ export function AppLayout() {
       <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 border-b backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
-            <Link to="/propositions" className="flex items-center gap-2.5">
+            <Link to="/dashboard" className="flex items-center gap-2.5">
               <span className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
                 <Building2 className="size-5" aria-hidden />
               </span>
