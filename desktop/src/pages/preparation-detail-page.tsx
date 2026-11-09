@@ -12,6 +12,7 @@ import {
 
 import { DetailItem, DetailList } from "@/components/dossier/detail-list";
 import { SectionCard } from "@/components/dossier/section-card";
+import { ExecutionManagementCard } from "@/components/executions/execution-management-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -93,6 +94,13 @@ export function PreparationDetailPage() {
     } finally {
       setDeleting(false);
     }
+  }
+
+  /** Opens the freshly created execution; the detail page re-reads it from the API. */
+  function handleExecutionCreated(created: Execution) {
+    navigate(`/executions/${created.id}`, {
+      state: { flash: "L'exécution a été créée." },
+    });
   }
 
   if (!preparationId) {
@@ -215,6 +223,11 @@ export function PreparationDetailPage() {
           uniquement les informations réellement enregistrées.
         </p>
       </SectionCard>
+
+      <ExecutionManagementCard
+        preparation={preparation}
+        onCreated={handleExecutionCreated}
+      />
 
       <SectionCard
         title="Suppression"
