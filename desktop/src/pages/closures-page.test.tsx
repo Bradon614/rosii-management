@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 
 import {
   buildClosure,
-  buildExecution,
   buildPreparation,
   buildProposal,
   CLOSURE_ID,
@@ -14,7 +13,7 @@ import {
 } from "@/test/fixtures";
 import { renderApp } from "@/test/render-app";
 import type { MockHandler, MockReply } from "@/test/mock-api";
-import type { Execution, ServiceClosure } from "@/types/api";
+import type { ServiceClosure } from "@/types/api";
 
 const SECOND_CLOSURE_ID = "99999999-9999-9999-9999-999999999998";
 const SECOND_PREPARATION_ID = "77777777-7777-7777-7777-777777777778";
@@ -24,26 +23,23 @@ const SECOND_PROPOSAL_ID = "11111111-1111-1111-1111-111111111112";
 const COMPLETED = buildClosure({
   id: CLOSURE_ID,
   preparationId: PREPARATION_ID,
+  proposalId: PROPOSAL_ID,
+  proposalNumber: "PROP-2026-0001",
   status: "COMPLETED",
   closedAt: "2026-12-13T09:00:00Z",
+  executionId: EXECUTION_ID,
+  executionStatus: "COMPLETED",
 });
 const WITH_ISSUE = buildClosure({
   id: SECOND_CLOSURE_ID,
   preparationId: SECOND_PREPARATION_ID,
+  proposalId: SECOND_PROPOSAL_ID,
+  proposalNumber: "PROP-2026-0002",
   status: "WITH_ISSUE",
   closedAt: "2026-12-20T18:00:00Z",
   finalNotes: "Incident mineur.",
-});
-
-const FIRST_EXECUTION = buildExecution({
-  id: EXECUTION_ID,
-  preparationId: PREPARATION_ID,
-  status: "COMPLETED",
-});
-const SECOND_EXECUTION = buildExecution({
-  id: SECOND_EXECUTION_ID,
-  preparationId: SECOND_PREPARATION_ID,
-  status: "COMPLETED",
+  executionId: SECOND_EXECUTION_ID,
+  executionStatus: "COMPLETED",
 });
 
 function closureHandler(closures: ServiceClosure[]): MockHandler {
@@ -62,33 +58,18 @@ function closureHandler(closures: ServiceClosure[]): MockHandler {
   };
 }
 
-function executionHandler(executions: Execution[]): MockHandler {
-  return ({ url }) => {
-    const params = new URL(url, "http://localhost").searchParams;
-    const preparationId = params.get("preparationId");
-    return {
-      body: preparationId
-        ? executions.filter((execution) => execution.preparationId === preparationId)
-        : executions,
-    };
-  };
-}
-
 function routes(
   closures: ServiceClosure[] = [COMPLETED, WITH_ISSUE],
   extra: Record<string, MockHandler> = {},
 ): Record<string, MockHandler> {
   return {
     "GET /api/closures": closureHandler(closures),
-    "GET /api/executions": executionHandler([FIRST_EXECUTION, SECOND_EXECUTION]),
+    // Feature 34: the closure row now carries its proposal and its active
+    // execution, so NO per-closure preparation/execution route is mocked here on
+    // purpose: a remaining per-row read would fail loudly ("Unexpected API call").
+    // The preparation/proposal routes below serve the preparationId FILTER banner
+    // only (one call, independent of the number of rows).
     [`GET /api/preparations/${PREPARATION_ID}`]: () => ({ body: buildPreparation() }),
-    [`GET /api/preparations/${SECOND_PREPARATION_ID}`]: () => ({
-      body: buildPreparation({
-        id: SECOND_PREPARATION_ID,
-        proposalId: SECOND_PROPOSAL_ID,
-        proposalNumber: "PROP-2026-0002",
-      }),
-    }),
     [`GET /api/proposals/${PROPOSAL_ID}`]: () => ({ body: buildProposal() }),
     ...extra,
   };
@@ -100,7 +81,7 @@ async function openList(): Promise<void> {
 
 describe("ClosuresPage — liste globale (F25)", () => {
   it("lists the status, date, preparation, proposal and execution of each closure", async () => {
-    renderApp("/closures", routes());
+    const { mock } = renderApp("/closures", routes());
 
     await openList();
 
@@ -115,14 +96,27 @@ describe("ClosuresPage — liste globale (F25)", () => {
       await screen.findByRole("link", { name: "Ouvrir la proposition PROP-2026-0001" }),
     ).toHaveAttribute("href", `/propositions/${PROPOSAL_ID}`);
     expect(
+      await screen.findByRole("link", { name: "Ouvrir la proposition PROP-2026-0002" }),
+    ).toHaveAttribute("href", `/propositions/${SECOND_PROPOSAL_ID}`);
+    expect(
       await screen.findByRole("link", { name: `Ouvrir l'exécution ${EXECUTION_ID}` }),
     ).toHaveAttribute("href", `/executions/${EXECUTION_ID}`);
+    expect(
+      await screen.findByRole("link", { name: `Ouvrir l'exécution ${SECOND_EXECUTION_ID}` }),
+    ).toHaveAttribute("href", `/executions/${SECOND_EXECUTION_ID}`);
     expect(
       screen.getByRole("link", { name: `Voir la clôture ${CLOSURE_ID}` }),
     ).toHaveAttribute("href", `/closures/${CLOSURE_ID}`);
     expect(
       screen.getByRole("link", { name: `Voir la clôture ${SECOND_CLOSURE_ID}` }),
     ).toHaveAttribute("href", `/closures/${SECOND_CLOSURE_ID}`);
+
+    // Feature 34: one list call and NOTHING per row — the preparation and the
+    // execution context now travel with the closure itself.
+    expect(mock.calls.filter((call) => call.url.startsWith("/api/closures"))).toHaveLength(1);
+    expect(mock.calls.filter((call) => call.url.startsWith("/api/preparations"))).toHaveLength(0);
+    expect(mock.calls.filter((call) => call.url.startsWith("/api/executions"))).toHaveLength(0);
+    expect(mock.calls.filter((call) => call.url.startsWith("/api/proposals"))).toHaveLength(0);
   });
 
   it("filters through the backend status parameter", async () => {

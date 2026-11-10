@@ -168,6 +168,9 @@ export function buildExecution(overrides: Partial<Execution> = {}): Execution {
   return {
     id: EXECUTION_ID,
     preparationId: PREPARATION_ID,
+    /** Feature 34: the proposal of the preparation travels with the row. */
+    proposalId: PROPOSAL_ID,
+    proposalNumber: "PROP-2026-0001",
     status: "COMPLETED",
     scheduledDate: "2026-12-12",
     startTime: "18:00:00",
@@ -189,9 +192,14 @@ export function buildClosure(overrides: Partial<ServiceClosure> = {}): ServiceCl
   return {
     id: CLOSURE_ID,
     preparationId: PREPARATION_ID,
+    /** Feature 34: the closure row carries its proposal and active execution. */
+    proposalId: PROPOSAL_ID,
+    proposalNumber: "PROP-2026-0001",
     status: "COMPLETED",
     closedAt: "2026-12-13T09:00:00Z",
     finalNotes: "Prestation terminée sans incident",
+    executionId: EXECUTION_ID,
+    executionStatus: "COMPLETED",
     createdAt: "2026-12-13T09:00:00Z",
     updatedAt: "2026-12-13T09:00:00Z",
     version: 0,
