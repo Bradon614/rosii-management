@@ -70,9 +70,27 @@ npm test          # Vitest unit/component tests (jsdom)
 
 During development, Vite proxies `/api` to `http://localhost:8080`, so the
 frontend calls the API on its own origin (no CORS needed and the JWT stays
-same-origin). `VITE_API_BASE_URL` can point the bundle at another origin, which
-requires that origin to allow CORS — the backend does not expose CORS today, so
-the production Tauri window (`tauri://localhost`) cannot reach the API yet.
+same-origin). Leave `VITE_API_BASE_URL` unset in development.
+
+Production build (native Windows bundle):
+
+```bash
+cd desktop
+VITE_API_BASE_URL=https://api.example.mg npm run tauri:build
+```
+
+`VITE_API_BASE_URL` is the backend **origin** (no `/api` suffix: the client
+appends `/api/...`). It is baked into the bundle, and `npm run tauri:build` also
+derives the production CSP `connect-src` from it, so both always match. The
+build fails when the variable is missing: no production URL is invented in the
+repository. The generated `src-tauri/tauri.build.conf.json` is git-ignored.
+
+In production the Tauri 2 webview calls the API from its own virtual origin —
+`http://tauri.localhost` on Windows, `tauri://localhost` on macOS/Linux — so the
+backend must allow that origin through CORS. The allowlist is explicit and
+comes from `APP_CORS_ALLOWED_ORIGINS` (see `.env.example`); it never contains a
+wildcard. The defaults already cover the Vite dev server and
+`http://tauri.localhost`; add other validated origins as needed.
 
 Authenticated screens are reached through the login form
 (`POST /api/auth/login`); the token is kept in localStorage and every `/api`
@@ -125,6 +143,8 @@ Copy `.env.example` and export the variables before running the backend
 | `FLYWAY_ENABLED`     | Run migrations on startup        | `true` (set `false` to boot without a DB) |
 | `JWT_SECRET`         | JWT signing key (≥ 32 chars)     | **required** — backend refuses to start without it |
 | `JWT_EXPIRATION`     | Access-token lifetime (seconds)  | `3600`                                  |
+| `APP_CORS_ALLOWED_ORIGINS` | Client origins allowed to call the API (comma-separated, never `*`) | `http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost` |
+| `VITE_API_BASE_URL`  | Backend base URL baked into a desktop production build (origin only, no `/api`) | *(unset — Vite proxy in dev)* |
 
 Generate a strong secret, e.g. `openssl rand -base64 48`. The backend fails fast
 if `JWT_SECRET` is missing or too short — no default key is ever shipped.
