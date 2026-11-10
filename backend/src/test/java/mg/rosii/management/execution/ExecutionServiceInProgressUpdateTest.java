@@ -11,6 +11,7 @@ import mg.rosii.management.execution.dto.UpdateExecutionRequest;
 import mg.rosii.management.payment.PaymentRepository;
 import mg.rosii.management.preparation.Preparation;
 import mg.rosii.management.preparation.PreparationRepository;
+import mg.rosii.management.proposal.Proposal;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,12 @@ class ExecutionServiceInProgressUpdateTest {
 
         Preparation preparation = mock(Preparation.class);
         when(preparation.getId()).thenReturn(UUID.randomUUID());
+        // Feature 34: the response exposes the proposal of the preparation, so the
+        // fixture provides one (the real relation is always non-null).
+        Proposal proposal = mock(Proposal.class);
+        when(proposal.getId()).thenReturn(UUID.randomUUID());
+        when(proposal.getNumber()).thenReturn("PROP-2026-0001");
+        when(preparation.getProposal()).thenReturn(proposal);
         execution = new Execution();
         execution.setPreparation(preparation);
         when(executions.findByIdAndDeletedAtIsNull(executionId)).thenReturn(Optional.of(execution));

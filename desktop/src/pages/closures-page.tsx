@@ -204,10 +204,17 @@ export function ClosuresPage() {
                       {closure.closedAt ? formatDateTime(closure.closedAt) : "—"}
                     </TableCell>
                     <TableCell>
-                      <ClosurePreparationCell preparationId={closure.preparationId} />
+                      <ClosurePreparationCell
+                        preparationId={closure.preparationId}
+                        proposalId={closure.proposalId}
+                        proposalNumber={closure.proposalNumber}
+                      />
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <ClosureExecutionCell preparationId={closure.preparationId} />
+                      <ClosureExecutionCell
+                        executionId={closure.executionId}
+                        executionStatus={closure.executionStatus}
+                      />
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">

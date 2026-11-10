@@ -3,8 +3,10 @@ package mg.rosii.management.closure;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import mg.rosii.management.closure.dto.ClosureResponse;
 import mg.rosii.management.closure.dto.CreateClosureRequest;
@@ -94,24 +96,62 @@ public class ClosureService {
         closure.setClosedAt(OffsetDateTime.now());
         closure.setFinalNotes(request.finalNotes());
         try {
-            return ClosureResponse.from(closures.saveAndFlush(closure));
+            // Feature 34: the execution was already loaded and checked above, so
+            // the response context costs no extra query here.
+            return ClosureResponse.from(closures.saveAndFlush(closure), execution);
         } catch (DataIntegrityViolationException e) {
             // The partial unique index is the final guard against concurrent duplicates.
             throw conflict("a closure already exists for this preparation");
         }
     }
 
+    /**
+     * Single closure read. The preparation and its proposal come with the row
+     * (repository entity graph); the active execution of the preparation is one
+     * extra statement, which stays constant because the read is single-row.
+     */
     @Transactional(readOnly = true)
     public ClosureResponse get(UUID id) {
-        return ClosureResponse.from(findActive(id));
+        ServiceClosure closure = findActive(id);
+        return ClosureResponse.from(closure, activeExecutionOf(closure));
     }
 
-    /** Optional combined filters: preparationId and/or status; soft-deleted never appear. */
+    /**
+     * Optional combined filters: preparationId and/or status; soft-deleted never appear.
+     *
+     * <p>Feature 34 — the row context (proposal number and active execution) is
+     * resolved WITHOUT one read per row: the closures and their proposals come
+     * from a single joined query, then the active executions of every listed
+     * preparation are loaded by ONE batched {@code in :ids} query and matched in
+     * memory. The number of statements is therefore constant (two) whatever the
+     * list size.
+     */
     @Transactional(readOnly = true)
     public List<ClosureResponse> list(UUID preparationId, ClosureStatus status) {
-        return closures.findMatching(preparationId, status).stream()
-                .map(ClosureResponse::from)
+        List<ServiceClosure> found = closures.findMatching(preparationId, status);
+        if (found.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> preparationIds = found.stream()
+                .map(closure -> closure.getPreparation().getId())
                 .toList();
+        // The 1:1 rule of Feature 10 allows at most one ACTIVE execution per
+        // preparation (partial unique index in V9), so this map has one entry per
+        // preparation and no collision is possible.
+        Map<UUID, Execution> activeByPreparation = executions
+                .findByPreparationIdInAndDeletedAtIsNull(preparationIds).stream()
+                .collect(Collectors.toMap(execution -> execution.getPreparation().getId(),
+                        execution -> execution));
+        return found.stream()
+                .map(closure -> ClosureResponse.from(closure,
+                        activeByPreparation.get(closure.getPreparation().getId())))
+                .toList();
+    }
+
+    /** The active execution of a closure's preparation, or null when none exists. */
+    private Execution activeExecutionOf(ServiceClosure closure) {
+        return executions.findByPreparationIdAndDeletedAtIsNull(closure.getPreparation().getId())
+                .orElse(null);
     }
 
     /**

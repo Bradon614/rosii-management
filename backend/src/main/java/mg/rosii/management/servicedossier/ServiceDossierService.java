@@ -107,6 +107,8 @@ public class ServiceDossierService {
                 invoiceResponses,
                 preparation == null ? null : PreparationResponse.from(preparation),
                 execution == null ? null : ExecutionResponse.from(execution),
-                closure == null ? null : ClosureResponse.from(closure));
+                // Feature 34: the dossier already loaded the active execution of
+                // the preparation, so the closure context costs no extra query.
+                closure == null ? null : ClosureResponse.from(closure, execution));
     }
 }

@@ -31,6 +31,8 @@ const IN_PROGRESS = buildExecution({
   scheduledDate: "2026-12-20",
   location: "Salle B",
   preparationId: SECOND_PREPARATION_ID,
+  proposalId: SECOND_PROPOSAL_ID,
+  proposalNumber: "PROP-2026-0002",
 });
 
 function executionHandler(executions: Execution[]): MockHandler {
@@ -59,14 +61,12 @@ function routes(
 ): Record<string, MockHandler> {
   return {
     "GET /api/executions": executionHandler(executions),
+    // Feature 34: the row context (proposal number/id) comes from the list
+    // response, so NO per-preparation route is mocked for the ROWS on purpose: an
+    // extra read would make the mock fail loudly with "Unexpected API call".
+    // The route below only serves the preparationId FILTER banner (one call,
+    // independent of the number of rows).
     [`GET /api/preparations/${PREPARATION_ID}`]: () => ({ body: buildPreparation() }),
-    [`GET /api/preparations/${SECOND_PREPARATION_ID}`]: () => ({
-      body: buildPreparation({
-        id: SECOND_PREPARATION_ID,
-        proposalId: SECOND_PROPOSAL_ID,
-        proposalNumber: "PROP-2026-0002",
-      }),
-    }),
     [`GET /api/proposals/${PROPOSAL_ID}`]: () => ({ body: buildProposal() }),
     ...extra,
   };
@@ -78,7 +78,7 @@ async function openList(): Promise<void> {
 
 describe("ExecutionsPage — liste globale (F24)", () => {
   it("lists the status, date, location, preparation and proposal of each execution", async () => {
-    renderApp("/executions", routes());
+    const { mock } = renderApp("/executions", routes());
 
     await openList();
 
@@ -95,11 +95,21 @@ describe("ExecutionsPage — liste globale (F24)", () => {
       await screen.findByRole("link", { name: "Ouvrir la proposition PROP-2026-0001" }),
     ).toHaveAttribute("href", `/propositions/${PROPOSAL_ID}`);
     expect(
+      await screen.findByRole("link", { name: "Ouvrir la proposition PROP-2026-0002" }),
+    ).toHaveAttribute("href", `/propositions/${SECOND_PROPOSAL_ID}`);
+    expect(
       screen.getByRole("link", { name: `Voir l'exécution ${EXECUTION_ID}` }),
     ).toHaveAttribute("href", `/executions/${EXECUTION_ID}`);
     expect(
       screen.getByRole("link", { name: `Voir l'exécution ${SECOND_EXECUTION_ID}` }),
     ).toHaveAttribute("href", `/executions/${SECOND_EXECUTION_ID}`);
+
+    // Feature 34: one list call, and NO read per row to resolve the preparation
+    // or the proposal (that cascade is what the optimization removed).
+    expect(mock.calls.filter((call) => call.url.startsWith("/api/preparations"))).toHaveLength(0);
+    expect(mock.calls.filter((call) => call.url.startsWith("/api/proposals"))).toHaveLength(0);
+    expect(mock.calls.filter((call) => call.url.startsWith("/api/executions?"))).toHaveLength(0);
+    expect(mock.calls.filter((call) => call.url === "/api/executions")).toHaveLength(1);
   });
 
   it("filters through the backend status parameter", async () => {
