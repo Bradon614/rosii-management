@@ -8,12 +8,17 @@
  * - `GET /api/executions?preparationId=&status=&scheduledDate=` (real global
  *   list, every parameter optional, soft-deleted rows excluded);
  * - `GET /api/executions/{id}`;
- * - `PUT /api/executions/{id}` with `version` and `scheduledDate` mandatory
- *   (409 on a stale version, on a terminal status, or on a schedule change
- *   while IN_PROGRESS);
+ * - `PUT /api/executions/{id}`: the editable fields depend on the status. While
+ *   PLANNED the payload carries the whole operational information and
+ *   `scheduledDate` is mandatory (400 when missing, 409 on a stale version, a
+ *   terminal status or a schedule change while IN_PROGRESS). While IN_PROGRESS
+ *   the schedule is locked, so the payload only carries `version`, `location`
+ *   and `notes`: absent schedule fields keep their stored value, including a
+ *   stored `null` date (Feature 32);
  * - `PATCH /api/executions/{id}/status` with `{ status }` (strict state
  *   machine, 409 on any other transition);
- * - `DELETE /api/executions/{id}` (204, **soft** deletion).
+ * - `DELETE /api/executions/{id}` (204, **soft** deletion), refused with 409
+ *   while an active closure depends on the execution (Feature 31).
  *
  * No business value is computed here. The transition table below mirrors the
  * backend state machine exactly so the UI only offers the actions the server
@@ -28,17 +33,38 @@ export interface CreateExecutionPayload {
   preparationId: string;
 }
 
-/** Body of `PUT /api/executions/{id}` (exact F10 contract). */
-export interface UpdateExecutionPayload {
+/**
+ * Body of `PUT /api/executions/{id}` while the execution is PLANNED (F10): the
+ * payload carries the whole operational information and `scheduledDate` is
+ * mandatory — the interface never invents one.
+ */
+export interface PlannedExecutionUpdate {
   /** Optimistic-locking version of the execution being edited. */
   version: number;
-  /** Mandatory on every PUT, even while IN_PROGRESS. */
+  /** Mandatory while PLANNED. */
   scheduledDate: string;
   startTime: string | null;
   endTime: string | null;
   location: string | null;
   notes: string | null;
 }
+
+/**
+ * Body of `PUT /api/executions/{id}` while the execution is IN_PROGRESS
+ * (Feature 32): the backend locks the schedule, so those fields are simply
+ * omitted — no artificial date, no re-sent schedule — and the stored values
+ * (including a stored `null` date) are preserved. Only `version`, `location`
+ * and `notes` are sent.
+ */
+export interface InProgressExecutionUpdate {
+  /** Optimistic-locking version of the execution being edited. */
+  version: number;
+  location: string | null;
+  notes: string | null;
+}
+
+/** Body of `PUT /api/executions/{id}`, decided by the current status. */
+export type UpdateExecutionPayload = PlannedExecutionUpdate | InProgressExecutionUpdate;
 
 export interface ExecutionFilters {
   preparationId?: string | null;

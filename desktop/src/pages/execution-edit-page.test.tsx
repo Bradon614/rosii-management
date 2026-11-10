@@ -12,7 +12,7 @@ import {
   PROPOSAL_ID,
 } from "@/test/fixtures";
 import { renderApp } from "@/test/render-app";
-import type { MockHandler } from "@/test/mock-api";
+import type { MockHandler, MockReply } from "@/test/mock-api";
 import type { Execution } from "@/types/api";
 
 const PATH = `/executions/${EXECUTION_ID}/edit`;
@@ -239,15 +239,19 @@ describe("ExecutionEditPage — PLANNED (F24)", () => {
   });
 });
 
-describe("ExecutionEditPage — IN_PROGRESS (F24)", () => {
-  it("only edits location and notes, and re-sends the locked schedule unchanged", async () => {
+describe("ExecutionEditPage — IN_PROGRESS (F24/F32)", () => {
+  function inProgressExecution(overrides: Partial<Execution> = {}): Execution {
+    return plannedExecution({ status: "IN_PROGRESS", version: 3, ...overrides });
+  }
+
+  it("only edits location and notes, and leaves the locked schedule out of the PUT", async () => {
     const user = userEvent.setup();
-    const execution = plannedExecution({ status: "IN_PROGRESS", version: 3 });
+    const execution = inProgressExecution();
     const { mock } = renderApp(
       PATH,
       editRoutes(execution, {
         [`PUT ${EXECUTION_PATH}`]: () => ({
-          body: { ...execution, location: "Salle B", notes: "Retard sonorisation" },
+          body: { ...execution, version: 4, location: "Salle B", notes: "Retard sonorisation" },
         }),
         ...DETAIL_ROUTES,
       }),
@@ -255,10 +259,16 @@ describe("ExecutionEditPage — IN_PROGRESS (F24)", () => {
 
     await openEdit("Corriger l'exécution");
 
+    // No editable date/time input at all, and the stored schedule is displayed read-only.
     expect(screen.getByText("Date et horaires verrouillés")).toBeInTheDocument();
     expect(screen.queryByLabelText(/Date programmée/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Heure de début")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Heure de fin")).not.toBeInTheDocument();
+    expect(screen.getAllByText(formatDate("2026-12-12")).length).toBeGreaterThan(0);
+    expect(screen.getByText("18:00 – 23:30")).toBeInTheDocument();
+    // Prefilled from the API.
+    expect(screen.getByLabelText("Lieu")).toHaveValue("Salle des fêtes");
+    expect(screen.getByLabelText("Notes")).toHaveValue("Montage le matin");
 
     await user.clear(screen.getByLabelText("Lieu"));
     await user.type(screen.getByLabelText("Lieu"), "Salle B");
@@ -268,27 +278,158 @@ describe("ExecutionEditPage — IN_PROGRESS (F24)", () => {
 
     await waitFor(() => expect(mock.calls.some((call) => call.method === "PUT")).toBe(true));
     const put = mock.calls.find((call) => call.method === "PUT");
+    expect(put?.url).toBe(EXECUTION_PATH);
+    // Feature 32: only the correctable fields, with the version.
     expect(put?.body).toEqual({
       version: 3,
-      scheduledDate: "2026-12-12",
-      startTime: "18:00",
-      endTime: "23:30",
       location: "Salle B",
       notes: "Retard sonorisation",
     });
+    // The stored date and times are NOT sent, so the backend cannot change them.
+    const body = put?.body as Record<string, unknown>;
+    expect(body).not.toHaveProperty("scheduledDate");
+    expect(body).not.toHaveProperty("startTime");
+    expect(body).not.toHaveProperty("endTime");
+
+    // After 200: back on the detail page with the success flash.
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: `Exécution du ${formatDate("2026-12-12")}`,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Les informations de l'exécution ont été enregistrées."),
+    ).toBeInTheDocument();
   });
 
-  it("blocks the correction when no scheduled date exists", async () => {
-    renderApp(
+  it("allows correcting a dateless execution and never invents a date", async () => {
+    const user = userEvent.setup();
+    const execution = inProgressExecution({
+      scheduledDate: null,
+      startTime: null,
+      endTime: null,
+      location: null,
+      notes: null,
+      version: 2,
+    });
+    const { mock } = renderApp(
       PATH,
-      editRoutes(plannedExecution({ status: "IN_PROGRESS", scheduledDate: null })),
+      editRoutes(execution, {
+        [`PUT ${EXECUTION_PATH}`]: () => ({
+          body: { ...execution, version: 3, location: "Salle C", notes: "Sans date" },
+        }),
+        ...DETAIL_ROUTES,
+      }),
     );
 
-    expect(await screen.findByText("Modification impossible")).toBeInTheDocument();
-    expect(screen.getByText(/Aucune date n'est inventée par l'interface/)).toBeInTheDocument();
+    await openEdit("Corriger l'exécution");
+
+    // No date field is required nor rendered, and the absence is stated explicitly.
+    expect(screen.queryByLabelText(/Date programmée/)).not.toBeInTheDocument();
+    expect(screen.getByText("Non renseignée")).toBeInTheDocument();
+    expect(screen.getByText("Non renseignés")).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Lieu"));
+    await user.type(screen.getByLabelText("Lieu"), "Salle C");
+    await user.clear(screen.getByLabelText("Notes"));
+    await user.type(screen.getByLabelText("Notes"), "Sans date");
+    await user.click(screen.getByRole("button", { name: "Enregistrer les corrections" }));
+
+    await waitFor(() => expect(mock.calls.some((call) => call.method === "PUT")).toBe(true));
+    const put = mock.calls.find((call) => call.method === "PUT");
+    expect(put?.body).toEqual({ version: 2, location: "Salle C", notes: "Sans date" });
+    expect(put?.body).not.toHaveProperty("scheduledDate");
+    expect(put?.body).not.toHaveProperty("startTime");
+    expect(put?.body).not.toHaveProperty("endTime");
+
+    // After 200: the execution is still dateless — nothing was invented.
     expect(
-      screen.queryByRole("button", { name: "Enregistrer les corrections" }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("heading", { level: 1, name: "Exécution" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Les informations de l'exécution ont été enregistrées."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the saving state and prevents a double submission", async () => {
+    const user = userEvent.setup();
+    let resolvePut: ((reply: MockReply) => void) | undefined;
+    const pending = new Promise<MockReply>((resolve) => {
+      resolvePut = resolve;
+    });
+    const execution = inProgressExecution({
+      scheduledDate: null,
+      startTime: null,
+      endTime: null,
+    });
+    const { mock } = renderApp(
+      PATH,
+      editRoutes(execution, {
+        [`PUT ${EXECUTION_PATH}`]: () => pending,
+        ...DETAIL_ROUTES,
+      }),
+    );
+
+    await openEdit("Corriger l'exécution");
+    await user.click(screen.getByRole("button", { name: "Enregistrer les corrections" }));
+
+    // The label uses a single ellipsis character ("Enregistrement…").
+    const saving = await screen.findByRole("button", { name: /Enregistrement/ });
+    expect(saving).toBeDisabled();
+    await user.click(saving);
+
+    expect(mock.calls.filter((call) => call.method === "PUT")).toHaveLength(1);
+
+    resolvePut?.({ body: { ...execution, version: 3 } });
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Exécution" }),
+    ).toBeInTheDocument();
+  });
+
+  it("reports a 409 on a stale version and reloads the current one", async () => {
+    const user = userEvent.setup();
+    let reads = 0;
+    let current = inProgressExecution({ scheduledDate: null, startTime: null, endTime: null });
+    renderApp(
+      PATH,
+      editRoutes(current, {
+        [`GET ${EXECUTION_PATH}`]: () => {
+          reads += 1;
+          if (reads > 1) {
+            current = inProgressExecution({
+              scheduledDate: null,
+              startTime: null,
+              endTime: null,
+              version: 4,
+              location: "Salle B",
+            });
+          }
+          return { body: current };
+        },
+        [`PUT ${EXECUTION_PATH}`]: () => ({ status: 409, body: { error: "stale" } }),
+      }),
+    );
+
+    await openEdit("Corriger l'exécution");
+    await user.click(screen.getByRole("button", { name: "Enregistrer les corrections" }));
+
+    expect(
+      await screen.findByText(/L'exécution a été modifiée entre-temps \(version obsolète\)/),
+    ).toBeInTheDocument();
+    // The form stays on screen so nothing typed is lost.
+    expect(screen.getByRole("heading", { level: 1, name: "Corriger l'exécution" })).toBeInTheDocument();
+
+    const before = reads;
+    await user.click(screen.getByRole("button", { name: "Recharger l'exécution" }));
+
+    await waitFor(() => expect(reads).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.getByLabelText("Lieu")).toHaveValue("Salle B"));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/L'exécution a été modifiée entre-temps \(version obsolète\)/),
+      ).not.toBeInTheDocument(),
+    );
   });
 });
 

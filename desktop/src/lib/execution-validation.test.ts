@@ -49,7 +49,7 @@ describe("createExecutionForm — valeurs du DTO, sans invention", () => {
   });
 });
 
-describe("validateExecutionUpdate — contrat PUT F10", () => {
+describe("validateExecutionUpdate — contrat PUT F10/F32", () => {
   it("builds the exact PLANNED payload with null optional values", () => {
     const result = validateExecutionUpdate(
       {
@@ -162,7 +162,7 @@ describe("validateExecutionUpdate — contrat PUT F10", () => {
     expect(result.errors.notes).toContain("2");
   });
 
-  it("re-sends the locked schedule unchanged while IN_PROGRESS", () => {
+  it("sends only the correctable fields while IN_PROGRESS (no schedule at all)", () => {
     const result = validateExecutionUpdate(
       {
         scheduledDate: "2026-12-20",
@@ -174,17 +174,20 @@ describe("validateExecutionUpdate — contrat PUT F10", () => {
       { version: 4, status: "IN_PROGRESS" },
     );
 
+    // Feature 32: the backend locks the schedule, so it is left out of the PUT
+    // and the stored date/times are preserved server-side.
+    expect(result.errors).toEqual({});
     expect(result.payload).toEqual({
       version: 4,
-      scheduledDate: "2026-12-20",
-      startTime: "08:00",
-      endTime: "17:00",
       location: "Salle B",
       notes: "Retard sonorisation",
     });
+    expect(result.payload).not.toHaveProperty("scheduledDate");
+    expect(result.payload).not.toHaveProperty("startTime");
+    expect(result.payload).not.toHaveProperty("endTime");
   });
 
-  it("still requires the locked date while IN_PROGRESS", () => {
+  it("accepts an IN_PROGRESS update when no scheduled date exists", () => {
     const result = validateExecutionUpdate(
       {
         scheduledDate: "",
@@ -196,7 +199,49 @@ describe("validateExecutionUpdate — contrat PUT F10", () => {
       { version: 4, status: "IN_PROGRESS" },
     );
 
+    expect(result.errors).toEqual({});
+    expect(result.payload).toEqual({
+      version: 4,
+      location: "Salle B",
+      notes: null,
+    });
+    // No invented date, not even an empty one sent as a value.
+    expect(result.payload).not.toHaveProperty("scheduledDate");
+  });
+
+  it("corrects the notes of a dateless IN_PROGRESS execution", () => {
+    const result = validateExecutionUpdate(
+      {
+        scheduledDate: "",
+        startTime: "",
+        endTime: "",
+        location: "",
+        notes: "  Retard sonorisation  ",
+      },
+      { version: 2, status: "IN_PROGRESS" },
+    );
+
+    expect(result.payload).toEqual({
+      version: 2,
+      location: null,
+      notes: "Retard sonorisation",
+    });
+  });
+
+  it("still enforces the DTO lengths while IN_PROGRESS", () => {
+    const result = validateExecutionUpdate(
+      {
+        scheduledDate: "",
+        startTime: "",
+        endTime: "",
+        location: "x".repeat(EXECUTION_LIMITS.location + 1),
+        notes: "y".repeat(EXECUTION_LIMITS.notes + 1),
+      },
+      { version: 0, status: "IN_PROGRESS" },
+    );
+
     expect(result.payload).toBeNull();
-    expect(result.errors.scheduledDate).toBe("La date programmée est obligatoire.");
+    expect(result.errors.location).toContain("500");
+    expect(result.errors.notes).toContain("2");
   });
 });
