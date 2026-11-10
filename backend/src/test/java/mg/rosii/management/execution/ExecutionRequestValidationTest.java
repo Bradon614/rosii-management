@@ -44,11 +44,16 @@ class ExecutionRequestValidationTest {
                 "Salle des fêtes", "Montage le matin"))).isEmpty();
     }
 
-    /** scheduledDate is mandatory for a valid Execution — never invented server-side. */
+    /**
+     * Feature 32 — scheduledDate is no longer mandatory at the DTO level: the
+     * execution status lives in the database, not in the payload, so the
+     * PLANNED-only requirement is enforced by ExecutionService (400) and
+     * covered by the service and HTTP/PostgreSQL tests.
+     */
     @Test
-    void missingScheduledDateIsRejected() {
+    void updateRequestAcceptsMissingScheduledDate() {
         assertThat(VALIDATOR.validate(new UpdateExecutionRequest(0L, null, null, null, null, null)))
-                .anySatisfy(v -> assertThat(v.getPropertyPath()).hasToString("scheduledDate"));
+                .isEmpty();
     }
 
     /** version is mandatory for optimistic locking (409 on stale). */

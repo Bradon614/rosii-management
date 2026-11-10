@@ -142,11 +142,20 @@ public class ExecutionService {
     }
 
     /**
-     * Updates the operational info. scheduledDate is mandatory (validated on the
-     * request) and the editable fields depend on the status: everything while
-     * PLANNED (with endTime >= startTime when both are given), only location and
-     * notes while IN_PROGRESS (rescheduling a started job is refused 409), none
-     * once COMPLETED or CANCELLED (409).
+     * Updates the operational info. The editable fields depend on the status:
+     * everything while PLANNED (scheduledDate stays mandatory — 400 when it is
+     * missing, no date is ever invented — with endTime >= startTime when both
+     * are given), only location and notes while IN_PROGRESS (409 on an actual
+     * schedule change), none once COMPLETED or CANCELLED (409).
+     *
+     * <p>Feature 32 — while IN_PROGRESS the schedule fields of the payload are
+     * optional: the stored schedule is locked, so {@code null} means "not
+     * provided" and keeps the stored value (including a stored {@code null}
+     * date), and only a value the client actually provided and that differs
+     * from the stored one is a reschedule attempt (409). An execution created
+     * without a scheduled date can therefore still have its location or notes
+     * corrected. The PLANNED branch is unchanged: there the payload stays
+     * authoritative for the whole operational info.
      */
     @Transactional
     public ExecutionResponse update(UUID id, UpdateExecutionRequest request) {
@@ -159,9 +168,13 @@ public class ExecutionService {
             throw conflict("a " + execution.getStatus() + " execution can no longer be modified");
         }
         if (execution.getStatus() == ExecutionStatus.IN_PROGRESS) {
-            boolean scheduleChanged = !Objects.equals(request.scheduledDate(), execution.getScheduledDate())
-                    || !Objects.equals(request.startTime(), execution.getStartTime())
-                    || !Objects.equals(request.endTime(), execution.getEndTime());
+            // The schedule is locked: only a value actually provided by the
+            // client can be a reschedule attempt, so omitting the schedule
+            // fields never conflicts and never clears what is already stored.
+            boolean scheduleChanged =
+                    scheduleProvidedAndDifferent(request.scheduledDate(), execution.getScheduledDate())
+                    || scheduleProvidedAndDifferent(request.startTime(), execution.getStartTime())
+                    || scheduleProvidedAndDifferent(request.endTime(), execution.getEndTime());
             if (scheduleChanged) {
                 throw conflict("an in-progress execution cannot be rescheduled; only location and notes can be corrected");
             }
@@ -169,7 +182,11 @@ public class ExecutionService {
             execution.setNotes(request.notes());
             return ExecutionResponse.from(executions.saveAndFlush(execution));
         }
-        // PLANNED: the full operational info is editable.
+        // PLANNED: scheduledDate stays mandatory (F10) and the full operational
+        // info is editable from the payload.
+        if (request.scheduledDate() == null) {
+            throw badRequest("scheduledDate is mandatory while an execution is PLANNED");
+        }
         if (request.startTime() != null && request.endTime() != null
                 && request.endTime().isBefore(request.startTime())) {
             throw badRequest("endTime cannot be before startTime");
@@ -180,6 +197,15 @@ public class ExecutionService {
         execution.setLocation(request.location());
         execution.setNotes(request.notes());
         return ExecutionResponse.from(executions.saveAndFlush(execution));
+    }
+
+    /**
+     * Feature 32 — IN_PROGRESS schedule guard: an omitted (null) value means
+     * "not provided" and keeps the stored value; only a provided value that
+     * differs is a reschedule attempt.
+     */
+    private static <T> boolean scheduleProvidedAndDifferent(T provided, T stored) {
+        return provided != null && !Objects.equals(provided, stored);
     }
 
     /**
