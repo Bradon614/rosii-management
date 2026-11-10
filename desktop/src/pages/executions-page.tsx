@@ -213,7 +213,11 @@ export function ExecutionsPage() {
                       {execution.location ?? "—"}
                     </TableCell>
                     <TableCell>
-                      <ExecutionPreparationLinks preparationId={execution.preparationId} />
+                      <ExecutionPreparationLinks
+                        preparationId={execution.preparationId}
+                        proposalId={execution.proposalId}
+                        proposalNumber={execution.proposalNumber}
+                      />
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">

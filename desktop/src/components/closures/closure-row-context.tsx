@@ -1,33 +1,27 @@
 import { Link } from "react-router-dom";
 
 import { ExecutionStatusBadge } from "@/components/status-badge";
-import { useApiQuery } from "@/hooks/use-api-query";
-import type { Execution, Preparation } from "@/types/api";
+import type { ExecutionStatus } from "@/types/api";
 
 /**
  * Context cells of one closure row (Feature 25).
  *
- * `ClosureResponse` only exposes `preparationId`; the F09 preparation endpoint
- * adds the proposal number and the F10 execution list gives the associated
- * execution. Each cell makes its own read (identical concurrent GETs are
- * deduplicated by the shared client) and never invents data.
+ * Feature 34: `ClosureResponse` now carries the proposal of the preparation
+ * (`proposalId`, `proposalNumber`) and the preparation's active execution
+ * (`executionId`, `executionStatus`, both `null` when it has none). The row
+ * therefore renders without any per-row read — previously one preparation call
+ * and one execution list call per closure. Nothing is invented here: a missing
+ * execution is reported as such.
  */
-export function ClosurePreparationCell({ preparationId }: { preparationId: string }) {
-  const { data: preparation, error, loading } = useApiQuery<Preparation>(
-    `/api/preparations/${preparationId}`,
-  );
-
-  if (loading && !preparation) {
-    return <span className="text-muted-foreground text-xs">Chargement du lien…</span>;
-  }
-  if (!preparation) {
-    return (
-      <span className="text-muted-foreground text-xs">
-        {error?.isNotFound ? "Préparation supprimée" : "Préparation indisponible"}
-      </span>
-    );
-  }
-
+export function ClosurePreparationCell({
+  preparationId,
+  proposalId,
+  proposalNumber,
+}: {
+  preparationId: string;
+  proposalId: string;
+  proposalNumber: string;
+}) {
   return (
     <div className="grid gap-0.5">
       <Link
@@ -38,39 +32,33 @@ export function ClosurePreparationCell({ preparationId }: { preparationId: strin
         Préparation
       </Link>
       <Link
-        to={`/propositions/${preparation.proposalId}`}
-        aria-label={`Ouvrir la proposition ${preparation.proposalNumber}`}
+        to={`/propositions/${proposalId}`}
+        aria-label={`Ouvrir la proposition ${proposalNumber}`}
         className="w-fit font-mono text-xs hover:underline hover:underline-offset-4"
       >
-        {preparation.proposalNumber}
+        {proposalNumber}
       </Link>
     </div>
   );
 }
 
-export function ClosureExecutionCell({ preparationId }: { preparationId: string }) {
-  const { data: executions, error, loading } = useApiQuery<Execution[]>(
-    `/api/executions?preparationId=${encodeURIComponent(preparationId)}`,
-  );
-  const execution = executions?.[0] ?? null;
-
-  if (loading && !executions) {
-    return <span className="text-muted-foreground text-xs">Chargement du lien…</span>;
-  }
-  if (!execution) {
-    return (
-      <span className="text-muted-foreground text-xs">
-        {error ? "Exécution indisponible" : "Aucune exécution active"}
-      </span>
-    );
+export function ClosureExecutionCell({
+  executionId,
+  executionStatus,
+}: {
+  executionId: string | null;
+  executionStatus: ExecutionStatus | null;
+}) {
+  if (!executionId || !executionStatus) {
+    return <span className="text-muted-foreground text-xs">Aucune exécution active</span>;
   }
 
   return (
     <div className="grid gap-1">
-      <ExecutionStatusBadge status={execution.status} className="w-fit" />
+      <ExecutionStatusBadge status={executionStatus} className="w-fit" />
       <Link
-        to={`/executions/${execution.id}`}
-        aria-label={`Ouvrir l'exécution ${execution.id}`}
+        to={`/executions/${executionId}`}
+        aria-label={`Ouvrir l'exécution ${executionId}`}
         className="w-fit text-sm hover:underline hover:underline-offset-4"
       >
         Ouvrir l&apos;exécution

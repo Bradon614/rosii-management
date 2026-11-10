@@ -199,6 +199,10 @@ export interface Preparation {
 export interface Execution {
   id: string;
   preparationId: string;
+  /** Proposal behind the preparation (Feature 34 list context, read-only). */
+  proposalId: string;
+  /** Human-readable proposal number, e.g. `PROP-2026-0001`. */
+  proposalNumber: string;
   status: ExecutionStatus;
   scheduledDate: string | null;
   startTime: string | null;
@@ -218,9 +222,19 @@ export interface Execution {
 export interface ServiceClosure {
   id: string;
   preparationId: string;
+  /** Proposal behind the preparation (Feature 34 list context, read-only). */
+  proposalId: string;
+  /** Human-readable proposal number, e.g. `PROP-2026-0001`. */
+  proposalNumber: string;
   status: ClosureStatus;
   closedAt: string | null;
   finalNotes: string | null;
+  /**
+   * Active execution of the preparation, or `null` when it has none (Feature 34
+   * list context; a soft-deleted execution is never reported).
+   */
+  executionId: string | null;
+  executionStatus: ExecutionStatus | null;
   createdAt: string;
   updatedAt: string;
   version: number;
