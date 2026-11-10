@@ -3,6 +3,8 @@ package mg.rosii.management.preparation;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import mg.rosii.management.closure.ServiceClosureRepository;
+import mg.rosii.management.execution.ExecutionRepository;
 import mg.rosii.management.payment.PaymentRepository;
 import mg.rosii.management.preparation.dto.CreatePreparationRequest;
 import mg.rosii.management.preparation.dto.PreparationResponse;
@@ -31,12 +33,17 @@ public class PreparationService {
     private final PreparationRepository preparations;
     private final ProposalRepository proposals;
     private final PaymentRepository payments;
+    private final ExecutionRepository executions;
+    private final ServiceClosureRepository closures;
 
     public PreparationService(PreparationRepository preparations, ProposalRepository proposals,
-            PaymentRepository payments) {
+            PaymentRepository payments, ExecutionRepository executions,
+            ServiceClosureRepository closures) {
         this.preparations = preparations;
         this.proposals = proposals;
         this.payments = payments;
+        this.executions = executions;
+        this.closures = closures;
     }
 
     @Transactional
@@ -84,10 +91,35 @@ public class PreparationService {
                 .orElseThrow(() -> notFound("preparation not found")));
     }
 
-    /** Soft deletion: sets deletedAt; the slot for the proposal is released. */
+    /**
+     * Soft deletion: sets deletedAt; the slot for the proposal is released.
+     *
+     * <p>Feature 30 — integrity guard: deletion is refused with 409 while an
+     * <em>active</em> execution or closure still depends on this preparation.
+     * Soft-deleted dependencies never block (the existence queries are filtered
+     * by {@code deletedAt is null}), so a preparation whose operational chain
+     * was itself soft-deleted can be deleted again. Nothing is cascaded: the
+     * execution and closure rows are never modified.
+     *
+     * <p>Concurrency: the check and the soft delete run in one transaction. A
+     * concurrent execution/closure creation can still commit between the check
+     * and this transaction's commit; closing that window would require the
+     * creation side (Features 10/11) to lock or re-check the preparation, which
+     * is outside this feature's scope. No extra row lock is taken — it would not
+     * serialize against the current lock-free creation paths.
+     */
     @Transactional
     public void delete(UUID id) {
-        findActive(id).markDeleted();
+        Preparation preparation = findActive(id);
+        // Existence checks only: no entity is loaded and the first refusal
+        // short-circuits the second query.
+        if (executions.existsByPreparationIdAndDeletedAtIsNull(id)) {
+            throw conflict("preparation cannot be deleted: an active execution depends on it");
+        }
+        if (closures.existsByPreparationIdAndDeletedAtIsNull(id)) {
+            throw conflict("preparation cannot be deleted: an active closure depends on it");
+        }
+        preparation.markDeleted();
     }
 
     private Preparation findActive(UUID id) {
