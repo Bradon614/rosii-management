@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
+import mg.rosii.management.closure.ServiceClosureRepository;
 import mg.rosii.management.execution.dto.CancelExecutionRequest;
 import mg.rosii.management.execution.dto.CancellationResponse;
 import mg.rosii.management.execution.dto.CreateExecutionRequest;
@@ -83,12 +84,14 @@ public class ExecutionService {
     private final ExecutionRepository executions;
     private final PreparationRepository preparations;
     private final PaymentRepository payments;
+    private final ServiceClosureRepository closures;
 
     public ExecutionService(ExecutionRepository executions, PreparationRepository preparations,
-            PaymentRepository payments) {
+            PaymentRepository payments, ServiceClosureRepository closures) {
         this.executions = executions;
         this.preparations = preparations;
         this.payments = payments;
+        this.closures = closures;
     }
 
     @Transactional
@@ -201,10 +204,34 @@ public class ExecutionService {
         return ExecutionResponse.from(executions.saveAndFlush(execution));
     }
 
-    /** Soft deletion: sets deletedAt; the row stays and the 1:1 slot is released. */
+    /**
+     * Soft deletion: sets deletedAt; the row stays and the 1:1 slot is released.
+     *
+     * <p>Feature 31 — integrity guard: deletion is refused with 409 while an
+     * <em>active</em> closure still depends on this execution. Feature 11 links
+     * a closure to the preparation (V10 {@code service_closures.preparation_id}),
+     * never to the execution row, so the dependency is resolved through the
+     * execution's preparation. The check is a single existence query filtered by
+     * {@code deletedAt is null}: a soft-deleted closure never blocks, no closure
+     * collection is loaded in memory, and nothing is cascaded — the closure row
+     * is never modified. The frontend already hides the action in that case, but
+     * this guard is the real integrity guarantee for a direct API call.
+     *
+     * <p>Concurrency: the check and the soft delete run in one transaction. A
+     * concurrent closure creation (Feature 11) can still commit between the check
+     * and this transaction's commit, so the guard is not a serialization
+     * guarantee. Closing that window would require the closure creation path to
+     * lock or re-check the execution as well, which is outside this feature's
+     * scope; no isolated row lock is taken here, as it would not serialize
+     * against the current lock-free creation path.
+     */
     @Transactional
     public void delete(UUID id) {
-        findActive(id).markDeleted();
+        Execution execution = findActive(id);
+        if (closures.existsByPreparationIdAndDeletedAtIsNull(execution.getPreparation().getId())) {
+            throw conflict("execution cannot be deleted: an active closure depends on it");
+        }
+        execution.markDeleted();
     }
 
     /**

@@ -211,6 +211,19 @@ class PreparationDeletionIntegrityIntegrationTest extends IntegrationTestSupport
                 .andExpect(status().is(expected));
     }
 
+    /**
+     * Test-only data surgery: soft-deletes the execution row directly, bypassing
+     * the API. Feature 31 now refuses {@code DELETE /api/executions/{id}} while an
+     * active closure exists — exactly the state the closure cases below must
+     * build — so the F10 endpoint can no longer be used as a setup shortcut. The
+     * Feature 30 rule under test (preparation deletion) is unchanged.
+     */
+    private void softDeleteExecutionDirectly(String executionId) {
+        Execution execution = executions.findById(UUID.fromString(executionId)).orElseThrow();
+        execution.markDeleted();
+        executions.saveAndFlush(execution);
+    }
+
     private MockHttpServletResponse deletePreparation(String preparationId, int expected) throws Exception {
         return mockMvc.perform(delete("/api/preparations/" + preparationId).header("Authorization", auth))
                 .andExpect(status().is(expected))
@@ -260,9 +273,10 @@ class PreparationDeletionIntegrityIntegrationTest extends IntegrationTestSupport
         String executionId = execute(preparationId);
         completeExecution(executionId);
         String closureId = close(preparationId);
-        // F10 deletion is out of scope: soft-deleting the execution leaves the
-        // closure as the only ACTIVE dependency.
-        deleteExecution(executionId, 204);
+        // Feature 31 protects the execution of an active closure, so the row is
+        // released by direct surgery (test-only) to leave the closure as the only
+        // ACTIVE dependency of the preparation.
+        softDeleteExecutionDirectly(executionId);
 
         MockHttpServletResponse response = deletePreparation(preparationId, 409);
 
@@ -294,7 +308,7 @@ class PreparationDeletionIntegrityIntegrationTest extends IntegrationTestSupport
         String executionId = execute(preparationId);
         completeExecution(executionId);
         String closureId = close(preparationId);
-        deleteExecution(executionId, 204);
+        softDeleteExecutionDirectly(executionId);
         deleteClosure(closureId, 204);
 
         deletePreparation(preparationId, 204);
