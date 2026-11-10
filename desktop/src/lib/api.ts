@@ -3,7 +3,9 @@
  *
  * - Requests go to a relative `/api` path by default, forwarded to the Spring
  *   Boot API by the Vite dev proxy (no CORS involved, and the JWT stays same
- *   origin). Set `VITE_API_BASE_URL` to target another origin explicitly.
+ *   origin). A production build sets `VITE_API_BASE_URL` to the backend origin;
+ *   the Tauri window then calls it cross-origin and the API answers with its
+ *   explicit CORS allowlist.
  * - The bearer token is read from localStorage on every request, so a 401 can
  *   never be caused by a stale in-memory copy.
  * - 401 clears the stored token and broadcasts {@link UNAUTHORIZED_EVENT}: the
@@ -17,7 +19,78 @@ export const AUTH_TOKEN_STORAGE_KEY = "rosii.auth.token";
 /** Window event fired when the API answers 401. */
 export const UNAUTHORIZED_EVENT = "rosii:unauthorized";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+/** Result of interpreting `VITE_API_BASE_URL`. */
+export interface ApiBaseUrl {
+  /** Backend origin (no trailing slash), or `""` for same-origin (dev proxy). */
+  baseUrl: string;
+  /** Configuration error to report, or `null` when the value is usable. */
+  error: string | null;
+}
+
+/**
+ * Interprets `VITE_API_BASE_URL`.
+ *
+ * The value is the backend **origin** (optionally a reverse-proxy path), never
+ * a full `/api` endpoint: the client appends `/api/...` itself, so an
+ * accidental `/api` suffix is removed instead of producing `/api/api/...`.
+ * Invalid values are reported and ignored rather than used, so the client
+ * falls back to same-origin requests (the Vite proxy) instead of sending
+ * requests to a malformed URL.
+ */
+export function resolveApiBaseUrl(raw: string | undefined | null): ApiBaseUrl {
+  const value = (raw ?? "").trim();
+  if (!value) {
+    return { baseUrl: "", error: null };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return {
+      baseUrl: "",
+      error: `VITE_API_BASE_URL n'est pas une URL valide : "${value}".`,
+    };
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return {
+      baseUrl: "",
+      error: `VITE_API_BASE_URL doit utiliser http ou https : "${value}".`,
+    };
+  }
+  if (parsed.username || parsed.password) {
+    return {
+      baseUrl: "",
+      error: "VITE_API_BASE_URL ne doit contenir aucun identifiant.",
+    };
+  }
+  if (parsed.search || parsed.hash) {
+    return {
+      baseUrl: "",
+      error: `VITE_API_BASE_URL ne doit contenir ni query string ni fragment : "${value}".`,
+    };
+  }
+
+  // `pathname` is always at least "/" for http(s) URLs.
+  let path = parsed.pathname.replace(/\/+$/, "");
+  if (path === "/api") {
+    path = "";
+  } else if (path.endsWith("/api")) {
+    path = path.slice(0, -"/api".length);
+  }
+
+  return { baseUrl: `${parsed.origin}${path}`, error: null };
+}
+
+const resolvedBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+if (resolvedBaseUrl.error) {
+  // Never silent: a misconfigured production build would otherwise look like a
+  // backend outage. Same-origin requests remain the safe fallback.
+  console.error(`[api] ${resolvedBaseUrl.error}`);
+}
+
+const API_BASE_URL = resolvedBaseUrl.baseUrl;
 
 /** Error carrying the HTTP status so pages can distinguish 401 / 403 / 404. */
 export class ApiError extends Error {

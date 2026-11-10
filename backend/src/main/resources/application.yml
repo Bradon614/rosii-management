@@ -38,3 +38,16 @@ jwt:
   secret: ${JWT_SECRET:}
   # Access-token lifetime. Plain numbers are seconds; Duration style also works (e.g. 30m).
   expiration: ${JWT_EXPIRATION:3600}
+
+app:
+  cors:
+    # Explicit CORS allowlist of CLIENT origins allowed to call the API
+    # (comma-separated). Never use "*": any web page could then call the API
+    # with a stolen token.
+    # Defaults cover the Vite dev server and the Tauri 2 Windows webview origin.
+    # Any other origin that serves the application (e.g. a future web build)
+    # MUST be added explicitly once validated:
+    #   APP_CORS_ALLOWED_ORIGINS=http://tauri.localhost,https://<validated-origin>
+    # macOS/Linux Tauri builds use the tauri://localhost origin; add it there if
+    # that platform is supported (not validated natively yet).
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost}
