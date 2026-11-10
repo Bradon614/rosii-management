@@ -34,11 +34,12 @@ interface ExecutionFormProps {
  * PUT form of one execution (Feature 24), whose editable fields depend on the
  * backend status:
  * - PLANNED: date, start/end times, location and notes;
- * - IN_PROGRESS: location and notes only (the current schedule is displayed
- *   read-only and re-sent unchanged to satisfy the mandatory `scheduledDate`).
+ * - IN_PROGRESS: location and notes only. The schedule is locked and simply
+ *   left out of the request (Feature 32), so no date is re-sent and none is
+ *   invented.
  *
- * No date is ever invented: an execution without a scheduled date must receive
- * one explicitly before the PUT can be sent.
+ * No date is ever invented: an execution without a scheduled date is displayed
+ * as such, and its location/notes can still be corrected while IN_PROGRESS.
  */
 export function ExecutionForm({ execution, onSubmit, onCancel, onReload }: ExecutionFormProps) {
   const [values, setValues] = useState<ExecutionFormValues>(() => createExecutionForm(execution));
@@ -110,21 +111,22 @@ export function ExecutionForm({ execution, onSubmit, onCancel, onReload }: Execu
           <Alert>
             <AlertTitle>Date et horaires verrouillés</AlertTitle>
             <AlertDescription>
-              Une exécution « En cours » ne peut plus être replanifiée : seuls le lieu et les notes
-              sont modifiés. Les valeurs ci-dessous sont renvoyées au serveur sans changement.
+              Une exécution « En cours » ne peut plus être replanifiée : sa date et ses horaires
+              sont verrouillés par le serveur. Seuls le lieu et les notes sont enregistrés ; la
+              date et les horaires ne sont jamais renvoyés ni inventés.
             </AlertDescription>
           </Alert>
           <DetailList>
             <DetailItem
               label="Date programmée"
-              value={values.scheduledDate ? formatDate(values.scheduledDate) : null}
+              value={values.scheduledDate ? formatDate(values.scheduledDate) : "Non renseignée"}
             />
             <DetailItem
               label="Horaires"
               value={
                 values.startTime || values.endTime
                   ? `${formatTime(values.startTime)} – ${formatTime(values.endTime)}`
-                  : null
+                  : "Non renseignés"
               }
             />
           </DetailList>

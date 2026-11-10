@@ -35,8 +35,9 @@ function ExecutionEditSkeleton() {
  * IN_PROGRESS (location and notes only). COMPLETED and CANCELLED are terminal
  * and answer 409, so the page explains the refusal instead of rendering a form.
  *
- * An IN_PROGRESS execution without a scheduled date is also blocked here: the
- * F10 PUT contract requires `scheduledDate`, and inventing one is forbidden.
+ * An IN_PROGRESS execution without a scheduled date is editable too (Feature
+ * 32): the schedule is locked and left out of the PUT, so the location and notes
+ * are correctable and no date is ever invented.
  */
 export function ExecutionEditPage() {
   const { executionId } = useParams<{ executionId: string }>();
@@ -117,20 +118,6 @@ export function ExecutionEditPage() {
       <ErrorState
         title="Modification impossible"
         description={`Cette exécution est « ${executionStatusLabels[execution.status]} ». Ce statut est définitif : ses informations opérationnelles ne peuvent plus être modifiées.`}
-        action={
-          <Button asChild variant="outline">
-            <Link to={`/executions/${execution.id}`}>Retour à l&apos;exécution</Link>
-          </Button>
-        }
-      />
-    );
-  }
-
-  if (execution.status === "IN_PROGRESS" && !execution.scheduledDate) {
-    return (
-      <ErrorState
-        title="Modification impossible"
-        description="Cette exécution n'a pas de date programmée, alors que le contrat de modification l'exige. Aucune date n'est inventée par l'interface : le lieu et les notes ne peuvent donc pas être corrigés depuis cet écran."
         action={
           <Button asChild variant="outline">
             <Link to={`/executions/${execution.id}`}>Retour à l&apos;exécution</Link>

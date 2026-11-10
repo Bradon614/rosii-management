@@ -1,13 +1,18 @@
 /**
- * Execution PUT form validation (Feature 24), mirroring the F10 contract.
+ * Execution PUT form validation (Feature 24), mirroring the backend F10/F32
+ * contract.
  *
  * Rules verified against the backend DTO/service:
- * - `scheduledDate` is mandatory on every PUT and is never invented here;
- * - while PLANNED, date, times, location and notes are editable, and `endTime`
- *   cannot be before `startTime` when both are given;
- * - while IN_PROGRESS, only location and notes are editable: the existing
- *   schedule is re-sent unchanged so the backend's schedule-change check (409)
- *   never triggers;
+ * - while PLANNED, `scheduledDate` is mandatory (the interface never invents
+ *   one), date, times, location and notes are editable, and `endTime` cannot be
+ *   before `startTime` when both are given;
+ * - while IN_PROGRESS, the backend locks the schedule: only location and notes
+ *   are validated and sent, without `scheduledDate` or times. An execution whose
+ *   `scheduledDate` is `null` is therefore correctable too (Feature 32), and no
+ *   date is ever generated here;
+ * - COMPLETED and CANCELLED never reach this form (the page refuses them), so
+ *   they follow the strictest branch (date mandatory) and can never produce a
+ *   payload that pretends to be editable;
  * - location ≤ 500 and notes ≤ 2000 (the DTO limits).
  *
  * The form never computes a business value: version and schedule come from the
@@ -85,6 +90,35 @@ export function validateExecutionUpdate(
 ): ExecutionValidationResult {
   const errors: ExecutionFormErrors = {};
 
+  const location = emptyToNull(values.location);
+  if (location !== null && location.length > EXECUTION_LIMITS.location) {
+    errors.location = `Le lieu ne peut pas dépasser ${EXECUTION_LIMITS.location} caractères.`;
+  }
+
+  const notes = emptyToNull(values.notes);
+  if (notes !== null && notes.length > EXECUTION_LIMITS.notes) {
+    errors.notes = `Les notes ne peuvent pas dépasser ${EXECUTION_LIMITS.notes.toLocaleString("fr-FR")} caractères.`;
+  }
+
+  // Feature 32: while IN_PROGRESS the schedule is locked by the backend, so it
+  // is neither validated nor sent — the stored date/times are preserved and an
+  // execution without a scheduled date stays correctable.
+  if (options.status === "IN_PROGRESS") {
+    if (Object.keys(errors).length > 0) {
+      return { errors, payload: null };
+    }
+    return {
+      errors,
+      payload: {
+        version: options.version,
+        location,
+        notes,
+      },
+    };
+  }
+
+  // PLANNED (and any status that should never be edited): the full operational
+  // information is required and authoritative.
   const scheduledDate = trimmed(values.scheduledDate);
   if (scheduledDate.length === 0) {
     errors.scheduledDate = "La date programmée est obligatoire.";
@@ -106,16 +140,6 @@ export function validateExecutionUpdate(
     if (minutesOf(endTime) < minutesOf(startTime)) {
       errors.endTime = "L'heure de fin ne peut pas précéder l'heure de début.";
     }
-  }
-
-  const location = emptyToNull(values.location);
-  if (location !== null && location.length > EXECUTION_LIMITS.location) {
-    errors.location = `Le lieu ne peut pas dépasser ${EXECUTION_LIMITS.location} caractères.`;
-  }
-
-  const notes = emptyToNull(values.notes);
-  if (notes !== null && notes.length > EXECUTION_LIMITS.notes) {
-    errors.notes = `Les notes ne peuvent pas dépasser ${EXECUTION_LIMITS.notes.toLocaleString("fr-FR")} caractères.`;
   }
 
   if (Object.keys(errors).length > 0) {
