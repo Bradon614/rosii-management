@@ -208,9 +208,9 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk());
     }
 
-    private void createClosure(String preparationId) throws Exception {
-        postJson("/api/closures", "preparationId", preparationId,
-                "finalNotes", "Prestation terminée sans incident");
+    private String createClosure(String preparationId) throws Exception {
+        return postJson("/api/closures", "preparationId", preparationId,
+                "finalNotes", "Prestation terminée sans incident").get("id").asText();
     }
 
     /** Full happy-path chain: client → demand → accepted proposal → payment/docs → prep → execution → closure. */
@@ -227,12 +227,13 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
         String executionId = createExecution(preparationId);
         setExecutionStatus(executionId, "IN_PROGRESS");
         setExecutionStatus(executionId, "COMPLETED");
-        createClosure(preparationId);
-        return new DossierFixture(clientId, demandId, proposalId, paymentId, preparationId, executionId);
+        String closureId = createClosure(preparationId);
+        return new DossierFixture(clientId, demandId, proposalId, paymentId, preparationId,
+                executionId, closureId);
     }
 
     private record DossierFixture(String clientId, String demandId, String proposalId,
-            String paymentId, String preparationId, String executionId) {
+            String paymentId, String preparationId, String executionId, String closureId) {
     }
 
     private JsonNode dossier(String proposalId) throws Exception {
@@ -402,6 +403,15 @@ class ServiceDossierIntegrationTest extends IntegrationTestSupport {
     void softDeletedPreparationHidesPreparationExecutionAndClosure() throws Exception {
         DossierFixture fixture = createFullDossier();
 
+        // Feature 30: a preparation with an active execution or closure can no
+        // longer be soft-deleted, so release the operational chain first
+        // (closure, then execution) before deleting the preparation.
+        mockMvc.perform(delete("/api/closures/" + fixture.closureId())
+                        .header("Authorization", auth))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/executions/" + fixture.executionId())
+                        .header("Authorization", auth))
+                .andExpect(status().isNoContent());
         mockMvc.perform(delete("/api/preparations/" + fixture.preparationId())
                         .header("Authorization", auth))
                 .andExpect(status().isNoContent());

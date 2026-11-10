@@ -300,7 +300,14 @@ class ClosureManagementIntegrationTest extends IntegrationTestSupport {
     /** Regle 5 - soft-deleted preparation: 404 (only active preparations can be closed). */
     @Test
     void refusesCreationForSoftDeletedPreparation() throws Exception {
-        String preparationId = createCompletedWorkflow();
+        String preparationId = createPreparedPreparation();
+        String executionId = objectMapper.readTree(execute(preparationId, 201)).get("id").asText();
+        changeExecutionStatus(executionId, "IN_PROGRESS", 200);
+        changeExecutionStatus(executionId, "COMPLETED", 200);
+        // Feature 30: a preparation with an active execution can no longer be
+        // soft-deleted, so release the execution first.
+        mockMvc.perform(delete("/api/executions/" + executionId).header("Authorization", auth))
+                .andExpect(status().isNoContent());
         mockMvc.perform(delete("/api/preparations/" + preparationId).header("Authorization", auth))
                 .andExpect(status().isNoContent());
 
