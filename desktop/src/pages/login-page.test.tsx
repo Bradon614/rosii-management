@@ -13,6 +13,26 @@ const LOGIN_RESPONSE = {
   user: { id: "u1", email: "patronne@chezrosii.mg", role: "PATRONNE" },
 };
 
+/** The dashboard aggregate of an empty database (Feature 35). */
+const EMPTY_DASHBOARD = {
+  demandsTotal: 0,
+  demandsByStatus: [],
+  demandsByType: [],
+  proposalsTotal: 0,
+  proposalsByStatus: [],
+  acceptedProposals: 0,
+  pendingProposals: 0,
+  paymentsCount: 0,
+  paymentsTotal: 0,
+  acceptedRemaining: 0,
+  acceptedWithoutDeposit: 0,
+  executionsTotal: 0,
+  executionsByStatus: [],
+  closuresTotal: 0,
+  closuresByStatus: [],
+  recentActivity: [],
+};
+
 describe("LoginPage", () => {
   it("stores the token returned by the API and opens the dashboard", async () => {
     const user = userEvent.setup();
@@ -20,11 +40,7 @@ describe("LoginPage", () => {
       "/login",
       {
         "POST /api/auth/login": () => ({ body: LOGIN_RESPONSE }),
-        "GET /api/demands": () => ({ body: [] }),
-        "GET /api/proposals": () => ({ body: [] }),
-        "GET /api/payments": () => ({ body: [] }),
-        "GET /api/executions": () => ({ body: [] }),
-        "GET /api/closures": () => ({ body: [] }),
+        "GET /api/dashboard": () => ({ body: EMPTY_DASHBOARD }),
       },
       { authenticated: false },
     );

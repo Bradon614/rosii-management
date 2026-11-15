@@ -20,12 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApiQuery } from "@/hooks/use-api-query";
-import {
-  buildRecentActivity,
-  DASHBOARD_PATHS,
-  summarizeDashboard,
-  type DashboardSourceData,
-} from "@/lib/dashboard-data";
+import { buildRecentActivity, DASHBOARD_PATH } from "@/lib/dashboard-data";
 import { formatAriary, formatInteger } from "@/lib/format";
 import {
   closureStatusLabels,
@@ -36,14 +31,10 @@ import {
 } from "@/lib/labels";
 import type {
   ClosureStatus,
-  Demand,
+  Dashboard,
   DemandStatus,
-  Execution,
   ExecutionStatus,
-  Payment,
-  Proposal,
   ProposalStatus,
-  ServiceClosure,
 } from "@/types/api";
 
 const DEMAND_STATUS_TONES: Record<DemandStatus, DashboardTone> = {
@@ -122,37 +113,24 @@ function DashboardSkeleton() {
 }
 
 /**
- * Dashboard (Feature 26). Read-only: it fetches the global list endpoints that
- * actually exist and aggregates only values they expose. There is no global
- * preparation endpoint, so no active-preparation count is fabricated.
+ * Dashboard (Feature 26, aggregated by Feature 35). Read-only.
+ *
+ * It reads the single `GET /api/dashboard` endpoint: the backend returns the
+ * indicators, the distributions and the bounded recent-activity timeline, so no
+ * complete list is downloaded and no figure is recomputed here. The screen stays
+ * atomic: one request, one loading state, one error state.
  */
 export function DashboardPage() {
-  const demands = useApiQuery<Demand[]>(DASHBOARD_PATHS.demands);
-  const proposals = useApiQuery<Proposal[]>(DASHBOARD_PATHS.proposals);
-  const payments = useApiQuery<Payment[]>(DASHBOARD_PATHS.payments);
-  const executions = useApiQuery<Execution[]>(DASHBOARD_PATHS.executions);
-  const closures = useApiQuery<ServiceClosure[]>(DASHBOARD_PATHS.closures);
+  const dashboard = useApiQuery<Dashboard>(DASHBOARD_PATH);
 
-  const queries = [demands, proposals, payments, executions, closures];
-  const error = queries.find((query) => query.error)?.error ?? null;
-  const anyLoading = queries.some((query) => query.loading);
-  const allLoaded = queries.every((query) => query.data !== null);
+  const error = dashboard.error;
+  const anyLoading = dashboard.loading;
+  const summary = dashboard.data;
+  const activities = summary ? buildRecentActivity(summary.recentActivity) : [];
 
   function reloadAll() {
-    queries.forEach((query) => query.reload());
+    dashboard.reload();
   }
-
-  const data: DashboardSourceData | null = allLoaded
-    ? {
-        demands: demands.data ?? [],
-        proposals: proposals.data ?? [],
-        payments: payments.data ?? [],
-        executions: executions.data ?? [],
-        closures: closures.data ?? [],
-      }
-    : null;
-  const summary = data ? summarizeDashboard(data) : null;
-  const activities = data ? buildRecentActivity(data) : [];
 
   if (error) {
     return (

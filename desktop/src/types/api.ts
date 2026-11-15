@@ -298,3 +298,76 @@ export interface AuthSession {
   expiresInSeconds: number;
   user: AuthenticatedUser;
 }
+
+/** One `status → count` pair of a `DashboardResponse` distribution. */
+export interface DashboardStatusCount<S extends string> {
+  status: S;
+  count: number;
+}
+
+/** One `type → count` pair of the `demandsByType` distribution. */
+export interface DashboardTypeCount {
+  type: DemandType;
+  count: number;
+}
+
+/** `DashboardActivityKind`: the six real events the dashboard can display. */
+export type DashboardActivityKind =
+  | "demand_created"
+  | "proposal_created"
+  | "proposal_accepted"
+  | "payment_recorded"
+  | "execution_completed"
+  | "closure_closed";
+
+/**
+ * `DashboardActivityResponse`: one real event of the recent-activity timeline.
+ *
+ * Only the fields the event kind exposes are set; the others are `null`. The
+ * wording and the navigation target are decided by the frontend, never by the
+ * backend.
+ */
+export interface DashboardActivityResponse {
+  kind: DashboardActivityKind;
+  id: string;
+  /** ISO instant of the real event; never null. */
+  date: string;
+  /** Client name, for a created demand. */
+  clientName: string | null;
+  /** Proposal number, for a proposal or payment event. */
+  proposalNumber: string | null;
+  /** Recorded amount, for a payment event. */
+  amount: number | null;
+  /** Planned service date, for a completed execution (may be absent). */
+  scheduledDate: string | null;
+  /** Closure result, for a closed service. */
+  closureStatus: ClosureStatus | null;
+}
+
+/**
+ * `DashboardResponse` of `GET /api/dashboard` (Feature 35): the whole dashboard
+ * payload aggregated by the backend.
+ *
+ * Status distributions always list every status of their enum, in declaration
+ * order, including the zero counts. `demandsByType` only lists the types that
+ * have at least one demand, ordered by decreasing count.
+ */
+export interface Dashboard {
+  demandsTotal: number;
+  demandsByStatus: DashboardStatusCount<DemandStatus>[];
+  demandsByType: DashboardTypeCount[];
+  proposalsTotal: number;
+  proposalsByStatus: DashboardStatusCount<ProposalStatus>[];
+  acceptedProposals: number;
+  /** Proposals still `SENT`; those past their validity count as `EXPIRED`. */
+  pendingProposals: number;
+  paymentsCount: number;
+  paymentsTotal: number;
+  acceptedRemaining: number;
+  acceptedWithoutDeposit: number;
+  executionsTotal: number;
+  executionsByStatus: DashboardStatusCount<ExecutionStatus>[];
+  closuresTotal: number;
+  closuresByStatus: DashboardStatusCount<ClosureStatus>[];
+  recentActivity: DashboardActivityResponse[];
+}
