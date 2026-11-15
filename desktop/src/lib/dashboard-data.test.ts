@@ -1,158 +1,59 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  acceptedRemaining,
-  acceptedWithoutDeposit,
-  buildRecentActivity,
-  paymentsTotal,
-  summarizeDashboard,
-  type DashboardSourceData,
-} from "@/lib/dashboard-data";
-import {
-  buildClosure,
-  buildDemand,
-  buildExecution,
-  buildPayment,
-  buildProposal,
-} from "@/test/fixtures";
+import { ACTIVITY_LIMIT, buildRecentActivity } from "@/lib/dashboard-data";
+import { normalizeSpaces } from "@/test/fixtures";
+import type {
+  DashboardActivityKind,
+  DashboardActivityResponse,
+} from "@/types/api";
 
-const SECOND_ID = "11111111-1111-1111-1111-111111111112";
-const THIRD_ID = "11111111-1111-1111-1111-111111111113";
+const FIRST_ID = "11111111-1111-1111-1111-111111111111";
+const SECOND_ID = "22222222-2222-2222-2222-222222222222";
+const THIRD_ID = "33333333-3333-3333-3333-333333333333";
 
-function emptyData(): DashboardSourceData {
-  return { demands: [], proposals: [], payments: [], executions: [], closures: [] };
+/** One `DashboardActivityResponse` as the backend sends it. */
+function event(
+  kind: DashboardActivityKind,
+  date: string,
+  overrides: Partial<DashboardActivityResponse> = {},
+): DashboardActivityResponse {
+  return {
+    kind,
+    id: FIRST_ID,
+    date,
+    clientName: null,
+    proposalNumber: null,
+    amount: null,
+    scheduledDate: null,
+    closureStatus: null,
+    ...overrides,
+  };
 }
 
-describe("summarizeDashboard — valeurs exposées par l'API", () => {
-  it("counts demands by status and by type without inventing categories", () => {
-    const summary = summarizeDashboard({
-      ...emptyData(),
-      demands: [
-        buildDemand(),
-        buildDemand({ id: SECOND_ID, type: "CATERING", status: "NEW" }),
-        buildDemand({ id: THIRD_ID, type: "EVENT", status: "NEW" }),
-      ],
-    });
-
-    expect(summary.demandsTotal).toBe(3);
-    expect(summary.demandsByStatus).toHaveLength(7);
-    expect(summary.demandsByStatus.find((item) => item.status === "NEW")?.count).toBe(2);
-    expect(summary.demandsByStatus.find((item) => item.status === "ACCEPTED")?.count).toBe(1);
-    expect(summary.demandsByStatus.find((item) => item.status === "REFUSED")?.count).toBe(0);
-    expect(summary.demandsByType).toEqual([
-      { type: "EVENT", count: 2 },
-      { type: "CATERING", count: 1 },
+describe("buildRecentActivity — rendu des événements réels du backend", () => {
+  it("renders each of the six kinds with its own title, reference and link", () => {
+    const activities = buildRecentActivity([
+      event("closure_closed", "2026-12-25T10:00:00Z", {
+        id: FIRST_ID,
+        closureStatus: "WITH_ISSUE",
+      }),
+      event("execution_completed", "2026-12-24T10:00:00Z", {
+        id: SECOND_ID,
+        scheduledDate: "2026-12-20",
+      }),
+      event("payment_recorded", "2026-12-23T10:00:00Z", {
+        id: THIRD_ID,
+        proposalNumber: "PROP-2026-0001",
+        amount: 150000,
+      }),
+      event("proposal_accepted", "2026-12-22T10:00:00Z", {
+        proposalNumber: "PROP-2026-0001",
+      }),
+      event("proposal_created", "2026-12-21T10:00:00Z", {
+        proposalNumber: "PROP-2026-0001",
+      }),
+      event("demand_created", "2026-12-20T10:00:00Z", { clientName: "Alice Rakoto" }),
     ]);
-  });
-
-  it("counts proposals, accepted proposals and SENT-only pending proposals", () => {
-    const summary = summarizeDashboard({
-      ...emptyData(),
-      proposals: [
-        buildProposal(),
-        buildProposal({
-          id: SECOND_ID,
-          status: "SENT",
-          acceptedAt: null,
-          remainingAmount: 100000,
-          depositReached: false,
-        }),
-        buildProposal({
-          id: THIRD_ID,
-          status: "ACCEPTED",
-          remainingAmount: 50000,
-          depositReached: false,
-        }),
-      ],
-    });
-
-    expect(summary.proposalsTotal).toBe(3);
-    expect(summary.proposalsByStatus.find((item) => item.status === "SENT")?.count).toBe(1);
-    expect(summary.proposalsByStatus.find((item) => item.status === "ACCEPTED")?.count).toBe(2);
-    expect(summary.acceptedProposals).toBe(2);
-    expect(summary.pendingProposals).toBe(1);
-  });
-
-  it("sums the recorded payment amounts and counts the payments", () => {
-    expect(
-      paymentsTotal([buildPayment(), buildPayment({ id: SECOND_ID, amount: 50000 })]),
-    ).toBe(200000);
-    expect(paymentsTotal([])).toBe(0);
-  });
-
-  it("sums only the backend remainingAmount of ACCEPTED proposals", () => {
-    expect(
-      acceptedRemaining([
-        buildProposal(),
-        buildProposal({ id: SECOND_ID, status: "ACCEPTED", remainingAmount: 50000 }),
-        buildProposal({ id: THIRD_ID, status: "SENT", remainingAmount: 100000 }),
-      ]),
-    ).toBe(400000);
-  });
-
-  it("counts only ACCEPTED proposals whose backend depositReached is false", () => {
-    expect(
-      acceptedWithoutDeposit([
-        buildProposal(),
-        buildProposal({ id: SECOND_ID, status: "ACCEPTED", depositReached: false }),
-        buildProposal({ id: THIRD_ID, status: "SENT", depositReached: false }),
-      ]),
-    ).toBe(1);
-  });
-
-  it("counts executions and closures by their real statuses", () => {
-    const summary = summarizeDashboard({
-      ...emptyData(),
-      executions: [
-        buildExecution({ id: SECOND_ID, status: "PLANNED" }),
-        buildExecution({ id: THIRD_ID, status: "IN_PROGRESS" }),
-        buildExecution({ status: "COMPLETED" }),
-        buildExecution({ id: "88888888-8888-8888-8888-888888888889", status: "CANCELLED" }),
-      ],
-      closures: [
-        buildClosure(),
-        buildClosure({ id: "99999999-9999-9999-9999-999999999998", status: "WITH_ISSUE" }),
-      ],
-    });
-
-    expect(summary.executionsTotal).toBe(4);
-    expect(summary.executionsByStatus).toEqual([
-      { status: "PLANNED", count: 1 },
-      { status: "IN_PROGRESS", count: 1 },
-      { status: "COMPLETED", count: 1 },
-      { status: "CANCELLED", count: 1 },
-    ]);
-    expect(summary.closuresTotal).toBe(2);
-    expect(summary.closuresByStatus).toEqual([
-      { status: "COMPLETED", count: 1 },
-      { status: "WITH_ISSUE", count: 1 },
-    ]);
-  });
-
-  it("returns zeros and empty activity when no data exists", () => {
-    const summary = summarizeDashboard(emptyData());
-
-    expect(summary.demandsTotal).toBe(0);
-    expect(summary.proposalsTotal).toBe(0);
-    expect(summary.paymentsTotal).toBe(0);
-    expect(summary.paymentsCount).toBe(0);
-    expect(summary.acceptedRemaining).toBe(0);
-    expect(summary.acceptedWithoutDeposit).toBe(0);
-    expect(summary.executionsTotal).toBe(0);
-    expect(summary.closuresTotal).toBe(0);
-    expect(buildRecentActivity(emptyData())).toEqual([]);
-  });
-});
-
-describe("buildRecentActivity — chronologie réelle uniquement", () => {
-  it("builds real events from the exposed timestamps and sorts them newest first", () => {
-    const activities = buildRecentActivity({
-      demands: [buildDemand()],
-      proposals: [buildProposal()],
-      payments: [buildPayment()],
-      executions: [buildExecution()],
-      closures: [buildClosure()],
-    });
 
     expect(activities.map((activity) => activity.title)).toEqual([
       "Service clôturé",
@@ -162,49 +63,95 @@ describe("buildRecentActivity — chronologie réelle uniquement", () => {
       "Proposition créée",
       "Demande créée",
     ]);
-    expect(activities[0].href).toMatch(/^\/closures\//);
-    expect(activities[1].href).toMatch(/^\/executions\//);
-    expect(activities[2].href).toMatch(/^\/paiements\//);
+
+    expect(activities[0].href).toBe(`/closures/${FIRST_ID}`);
+    expect(activities[1].href).toBe(`/executions/${SECOND_ID}`);
+    expect(activities[2].href).toBe(`/paiements/${THIRD_ID}`);
+    expect(activities[5].href).toBe(`/demandes/${FIRST_ID}`);
+
+    // Real references only: status label + short id, planned date, amount,
+    // proposal number, client name.
+    expect(activities[0].reference).toContain("Clôturée avec réserve");
+    expect(activities[1].reference).toContain("Prestation du");
+    expect(normalizeSpaces(activities[2].reference)).toContain("150 000 Ar");
+    expect(activities[3].reference).toBe("PROP-2026-0001");
+    expect(activities[4].reference).toBe("PROP-2026-0001");
     expect(activities[5].reference).toBe("Alice Rakoto");
   });
 
-  it("honours the limit and keeps the most recent events", () => {
-    const activities = buildRecentActivity(
-      {
-        demands: [buildDemand()],
-        proposals: [buildProposal()],
-        payments: [buildPayment()],
-        executions: [buildExecution()],
-        closures: [buildClosure()],
-      },
-      2,
-    );
+  it("falls back to the short id when a completed execution has no planned date", () => {
+    const activities = buildRecentActivity([
+      event("execution_completed", "2026-12-24T10:00:00Z", { scheduledDate: null }),
+    ]);
 
-    expect(activities).toHaveLength(2);
-    expect(activities[0].title).toBe("Service clôturé");
-    expect(activities[1].title).toBe("Exécution terminée");
+    expect(activities[0].reference).toContain("11111111...");
   });
 
-  it("skips events whose real date is absent", () => {
-    const activities = buildRecentActivity({
-      demands: [],
-      proposals: [],
-      payments: [],
-      executions: [buildExecution({ completedAt: null })],
-      closures: [buildClosure({ closedAt: null })],
-    });
+  it("sorts newest first, whatever order the backend used", () => {
+    const activities = buildRecentActivity([
+      event("demand_created", "2026-12-20T10:00:00Z", { clientName: "Ancienne" }),
+      event("payment_recorded", "2026-12-24T10:00:00Z", { amount: 1000 }),
+    ]);
 
-    expect(activities).toEqual([]);
+    expect(activities.map((activity) => activity.kind)).toEqual([
+      "payment_recorded",
+      "demand_created",
+    ]);
+  });
+
+  it("breaks identical dates by identifier, ascending", () => {
+    const sameInstant = "2026-12-20T10:00:00Z";
+    const activities = buildRecentActivity([
+      event("demand_created", sameInstant, { id: THIRD_ID, clientName: "Troisième" }),
+      event("demand_created", sameInstant, { id: FIRST_ID, clientName: "Première" }),
+      event("demand_created", sameInstant, { id: SECOND_ID, clientName: "Deuxième" }),
+    ]);
+
+    expect(activities.map((activity) => activity.id)).toEqual([
+      `demand-created-${FIRST_ID}`,
+      `demand-created-${SECOND_ID}`,
+      `demand-created-${THIRD_ID}`,
+    ]);
+  });
+
+  it("never displays more events than the timeline limit", () => {
+    const many = Array.from({ length: ACTIVITY_LIMIT + 4 }, (_, index) =>
+      event("payment_recorded", `2026-12-${String(20 + index).padStart(2, "0")}T10:00:00Z`, {
+        id: `${String(index).repeat(8)}-1111-1111-1111-111111111111`,
+        amount: 1000,
+      }),
+    );
+
+    const activities = buildRecentActivity(many);
+
+    expect(activities).toHaveLength(ACTIVITY_LIMIT);
+    // The most recent ones are kept.
+    expect(activities[0].date).toBe("2026-12-31T10:00:00Z");
+  });
+
+  it("skips events whose date cannot be read", () => {
+    const activities = buildRecentActivity([
+      event("payment_recorded", "not-a-date", { amount: 1000 }),
+      event("demand_created", "2026-12-20T10:00:00Z", { clientName: "Alice Rakoto" }),
+    ]);
+
+    expect(activities).toHaveLength(1);
+    expect(activities[0].kind).toBe("demand_created");
+  });
+
+  it("renders nothing when the backend has no event to report", () => {
+    expect(buildRecentActivity([])).toEqual([]);
   });
 
   it("never invents a preparation event", () => {
-    const activities = buildRecentActivity({
-      demands: [],
-      proposals: [],
-      payments: [],
-      executions: [],
-      closures: [],
-    });
+    const activities = buildRecentActivity([
+      event("demand_created", "2026-12-20T10:00:00Z"),
+      event("proposal_created", "2026-12-21T10:00:00Z"),
+      event("proposal_accepted", "2026-12-22T10:00:00Z"),
+      event("payment_recorded", "2026-12-23T10:00:00Z"),
+      event("execution_completed", "2026-12-24T10:00:00Z"),
+      event("closure_closed", "2026-12-25T10:00:00Z"),
+    ]);
 
     expect(activities.some((activity) => activity.kind.includes("preparation"))).toBe(false);
   });
