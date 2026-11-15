@@ -315,13 +315,12 @@ public class ProposalService {
     /**
      * Lazy expiration (no scheduler): a SENT proposal past its validUntil is
      * treated as EXPIRED at read/transition time.
+     *
+     * <p>The rule itself lives in {@link ProposalExpiration}, which the dashboard
+     * aggregate applies to the same stored values, so the two can never diverge.
      */
     private void expireIfPastValidity(Proposal proposal) {
-        if (proposal.getStatus() == ProposalStatus.SENT
-                && proposal.getValidUntil() != null
-                && proposal.getValidUntil().isBefore(LocalDate.now())) {
-            proposal.setStatus(ProposalStatus.EXPIRED);
-        }
+        ProposalExpiration.apply(proposal, LocalDate.now());
     }
 
     /** Decision C: PROP-YYYY-NNNN, per-year sequence; unique constraint is the final guard. */
